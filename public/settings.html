@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Settings</title>
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Settings</h1>
+    <nav><a href="/">Customer</a> <a href="/staff.html">Staff</a></nav>
+  </header>
+  <main class="container settings">
+    <section>
+      <h2>Tables</h2>
+      <label>Number of tables: <input id="table-count" type="number" min="1"></label>
+      <button id="save-tables">Save</button>
+    </section>
+
+    <section>
+      <h2>Menu</h2>
+      <form id="menu-form">
+        <input id="m-name" placeholder="Name" required />
+        <input id="m-price" placeholder="Price" type="number" step="0.01" required />
+        <input id="m-category" placeholder="Category" required />
+        <input id="m-desc" placeholder="Description" />
+        <button type="submit">Add Menu Item</button>
+      </form>
+    </section>
+
+    <section>
+      <h2>Sales Report</h2>
+      <button id="refresh-report">Refresh</button>
+      <pre id="report-output"></pre>
+    </section>
+  </main>
+  <script src="/assets/settings.js"></script>
+</body>
+</html>

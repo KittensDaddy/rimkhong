@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Menu - Mobile Order</title>
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1 id="title">Menu</h1>
+    <nav><a href="/staff.html">Staff</a> <a href="/settings.html">Settings</a></nav>
+  </header>
+
+  <main class="container">
+    <section class="category-bar" id="categories"></section>
+    <section id="menu-list" class="menu-list"></section>
+  </main>
+
+  <aside class="cart" id="cart">
+    <h3>Cart</h3>
+    <ul id="cart-items"></ul>
+    <div class="cart-footer">
+      <div>Total: <span id="cart-total">0.00</span></div>
+      <button id="checkout">Checkout</button>
+    </div>
+  </aside>
+
+  <script src="/assets/app.js"></script>
+</body>
+</html>
