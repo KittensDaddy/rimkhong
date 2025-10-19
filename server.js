@@ -12,12 +12,13 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/restaurant'
 });
 
-// Simple admin middleware: protect admin routes with ADMIN_TOKEN env var
-function adminGuard(req,res,next){
-  const token = req.headers['x-admin-token'] || req.query.admin_token;
-  if(process.env.ADMIN_TOKEN && token === process.env.ADMIN_TOKEN) return next();
-  return res.status(401).json({ error: 'unauthorized' });
-}
+// Note: admin routes intentionally unprotected for this small local deployment.
+// Staff page is only reachable via /plek which is not linked from the customer page.
+
+// Block direct access to /staff.html to make staff page only reachable via /plek
+app.get('/staff.html', (req,res)=>{
+  res.status(404).send('Not found');
+});
 
 // Serve static frontend
 app.use(express.static(path.join(__dirname, 'public')));
@@ -97,7 +98,7 @@ app.post('/api/admin/tables/:id/regenerate-token', async (req,res)=>{
 });
 
 // Admin: list tables with tokens (for settings UI)
-app.get('/api/admin/tables', adminGuard, async (req,res)=>{
+app.get('/api/admin/tables', async (req,res)=>{
   try{
     const r = await pool.query('SELECT id,name,status,access_token FROM tables ORDER BY id');
     // compose customer link base from request
@@ -108,7 +109,7 @@ app.get('/api/admin/tables', adminGuard, async (req,res)=>{
 });
 
 // Admin: generate QR as PNG for a table link
-app.get('/api/admin/tables/:id/qr', adminGuard, async (req,res)=>{
+app.get('/api/admin/tables/:id/qr', async (req,res)=>{
   const id = parseInt(req.params.id,10);
   try{
     const r = await pool.query('SELECT access_token FROM tables WHERE id=$1', [id]);
@@ -121,7 +122,7 @@ app.get('/api/admin/tables/:id/qr', adminGuard, async (req,res)=>{
 });
 
 // Admin: generate label SVG (QR + table text) for printing; returned as SVG
-app.get('/api/admin/tables/:id/label', adminGuard, async (req,res)=>{
+app.get('/api/admin/tables/:id/label', async (req,res)=>{
   const id = parseInt(req.params.id,10);
   try{
     const r = await pool.query('SELECT access_token, name FROM tables WHERE id=$1', [id]);
