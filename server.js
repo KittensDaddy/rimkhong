@@ -152,6 +152,11 @@ app.get('/plek', (req,res)=>{
   res.sendFile(path.join(__dirname, 'public', 'staff.html'));
 });
 
+// Serve customer page for tokenized table URLs (so /table/:id/:token loads the SPA)
+app.get('/table/:id/:token', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // helper to escape XML characters for the SVG text
 function escapeXml(unsafe){
   return String(unsafe).replace(/[&<>"']/g, function (c) { return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&apos;" }[c]; });
