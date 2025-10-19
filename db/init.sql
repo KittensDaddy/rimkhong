@@ -40,4 +40,7 @@ INSERT INTO menu(name,price,category,description)
 SELECT 'Coke', 1.50, 'Drink', 'Can of coke' WHERE NOT EXISTS (SELECT 1 FROM menu WHERE name='Coke');
 
 -- ensure tokens exist for any preexisting rows
+-- If the tables table existed from an earlier version without access_token, add the column
+ALTER TABLE tables ADD COLUMN IF NOT EXISTS access_token TEXT;
+-- populate tokens for rows missing them
 UPDATE tables SET access_token = md5(random()::text || clock_timestamp()::text) WHERE access_token IS NULL;
