@@ -1,5 +1,12 @@
+// Admin-aware API helper: inject x-admin-token header if admin token supplied in UI
 async function api(path, opts){
-  const r = await fetch('/api'+path, opts); return r.json();
+  opts = opts || {};
+  const headers = Object.assign({}, opts.headers || {});
+  const admin = document.getElementById('admin-token')?.value;
+  if(admin) headers['x-admin-token'] = admin;
+  const res = await fetch('/api' + path, Object.assign({}, opts, { headers }));
+  // try to parse JSON; for non-JSON callers handle elsewhere
+  return res.json();
 }
 
 document.getElementById('menu-form').addEventListener('submit', async (e)=>{
@@ -21,5 +28,74 @@ document.getElementById('refresh-report').addEventListener('click', async ()=>{
   document.getElementById('report-output').textContent = JSON.stringify(r, null, 2);
 });
 
-// init
-(async ()=>{ const t = await api('/tables'); document.getElementById('table-count').value = t.length; })();
+// init table count (public endpoint)
+(async ()=>{ const resp = await fetch('/api/tables'); const t = await resp.json(); document.getElementById('table-count').value = t.length; })();
+
+// load admin-only table links and show QR/regenerate buttons
+async function loadTableLinks(){
+  try{
+    const tables = await api('/admin/tables');
+    const container = document.getElementById('table-links'); container.innerHTML='';
+    if(!tables || tables.length===0){ container.textContent = 'No tables or invalid admin token.'; return; }
+    for(const t of tables){
+      const row = document.createElement('div'); row.className='menu-item';
+      const left = document.createElement('div');
+      left.innerHTML = `<strong>${t.name}</strong><div class="muted">${t.link}</div>`;
+      const right = document.createElement('div');
+  const qrBtn = document.createElement('button'); qrBtn.textContent='Show QR';
+  const downloadBtn = document.createElement('button'); downloadBtn.textContent='Download PNG';
+  const regenBtn = document.createElement('button'); regenBtn.textContent='Regenerate';
+  right.appendChild(qrBtn); right.appendChild(downloadBtn); right.appendChild(regenBtn);
+      row.appendChild(left); row.appendChild(right);
+      container.appendChild(row);
+
+      // Show inline label SVG (QR + table text)
+      const previewHolder = document.createElement('div'); previewHolder.style.marginTop='8px';
+      row.appendChild(previewHolder);
+
+      qrBtn.addEventListener('click', async ()=>{
+        const admin = document.getElementById('admin-token')?.value;
+        const res = await fetch('/api/admin/tables/'+t.id+'/label', { headers: { 'x-admin-token': admin } });
+        if(res.ok){
+          const svgText = await res.text();
+          previewHolder.innerHTML = svgText;
+        } else {
+          const j = await res.json().catch(()=>null);
+          alert('Failed to load label: ' + (j?.error||res.status));
+        }
+      });
+
+      // Download PNG: fetch SVG then convert to PNG using canvas
+      downloadBtn.addEventListener('click', async ()=>{
+        try{
+          const admin = document.getElementById('admin-token')?.value;
+          const res = await fetch('/api/admin/tables/'+t.id+'/label', { headers: { 'x-admin-token': admin } });
+          if(!res.ok) return alert('Failed to load label for download');
+          const svgText = await res.text();
+          const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+          const url = URL.createObjectURL(svgBlob);
+          const img = new Image();
+          img.onload = ()=>{
+            const canvas = document.createElement('canvas'); canvas.width = img.width; canvas.height = img.height;
+            const ctx = canvas.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+            ctx.drawImage(img,0,0);
+            canvas.toBlob((blob)=>{
+              const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${t.name.replace(/\s+/g,'_')}_label.png`; document.body.appendChild(a); a.click(); a.remove();
+            }, 'image/png');
+          };
+          img.onerror = ()=> alert('Failed to render SVG to image');
+          img.src = url;
+        }catch(err){ console.error(err); alert('Download failed'); }
+      });
+
+      regenBtn.addEventListener('click', async ()=>{
+        const admin = document.getElementById('admin-token')?.value;
+        const res = await fetch('/api/admin/tables/'+t.id+'/regenerate-token', { method:'POST', headers: { 'x-admin-token': admin } });
+        const j = await res.json().catch(()=>null);
+        if(res.ok){ alert('Regenerated token for '+t.name); loadTableLinks(); } else { alert('Regenerate failed: '+(j?.error||res.status)); }
+      });
+    }
+  }catch(err){ console.error(err); alert('Failed to load table links. Make sure admin token is correct.'); }
+}
+
+document.getElementById('admin-auth').addEventListener('click', loadTableLinks);

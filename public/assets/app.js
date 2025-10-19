@@ -5,12 +5,18 @@ async function apiGet(path){
   return res.json();
 }
 
-function getTableFromUrl(){
+// Expect path like /table/<id>/<token> (we will support root fallback but discourage it)
+function parsePath(){
+  const parts = location.pathname.split('/').filter(Boolean);
+  // if path is /table/3/abcdef
+  if(parts[0]==='table' && parts[1]) return { table: parseInt(parts[1],10), token: parts[2] };
+  // fallback to ?table=1 (legacy) but token will be null — will be rejected by server
   const p = new URLSearchParams(location.search);
-  return parseInt(p.get('table')||'1',10);
+  return { table: parseInt(p.get('table')||'1',10), token: p.get('token') || null };
 }
 
-let CART = { items: [], table: getTableFromUrl() };
+const PATH = parsePath();
+let CART = { items: [], table: PATH.table, token: PATH.token };
 
 function renderCategories(categories){
   const el = document.getElementById('categories');
@@ -45,7 +51,8 @@ function renderCart(){
 
 async function checkout(){
   if(CART.items.length===0){ alert('Cart empty'); return; }
-  const payload = { table_id: CART.table, items: CART.items, total: CART.items.reduce((s,i)=>s+i.qty*i.price,0), payment_method: 'cash' };
+  if(!CART.token) return alert('Invalid table link. Please use the QR code on your table.');
+  const payload = { table_id: CART.table, items: CART.items, total: CART.items.reduce((s,i)=>s+i.qty*i.price,0), payment_method: 'cash', token: CART.token };
   const res = await fetch('/api/orders', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(payload) });
   if(res.ok){ CART.items=[]; renderCart(); alert('Order placed'); } else alert('Order failed');
 }
@@ -63,6 +70,11 @@ async function init(){
   await loadMenu();
   renderCart();
   document.getElementById('title').textContent = `Menu - Table ${CART.table}`;
+  if(!CART.token){
+    // indicate invalid access
+    const warn = document.createElement('div'); warn.style.color='red'; warn.textContent = 'This page requires a table-specific QR link. Please use the QR code on your table.';
+    document.querySelector('.container').prepend(warn);
+  }
 }
 
 init();

@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS menu (
 CREATE TABLE IF NOT EXISTS tables (
   id INT PRIMARY KEY,
   name TEXT,
-  status TEXT DEFAULT 'available' -- available, order_pending, paid
+  status TEXT DEFAULT 'available', -- available, order_pending, paid
+  access_token TEXT
 );
 
 CREATE TABLE IF NOT EXISTS orders (
@@ -28,7 +29,7 @@ CREATE TABLE IF NOT EXISTS orders (
 DO $$
 BEGIN
   IF (SELECT COUNT(*) FROM tables) = 0 THEN
-    INSERT INTO tables(id,name,status) SELECT i, concat('Table ', i), 'available' FROM generate_series(1,8) i;
+    INSERT INTO tables(id,name,status, access_token) SELECT i, concat('Table ', i), 'available', md5(random()::text || clock_timestamp()::text) FROM generate_series(1,8) i;
   END IF;
 END$$;
 
@@ -37,3 +38,6 @@ INSERT INTO menu(name,price,category,description)
 SELECT 'Margherita', 8.50, 'Pizza', 'Classic cheese and tomato' WHERE NOT EXISTS (SELECT 1 FROM menu WHERE name='Margherita');
 INSERT INTO menu(name,price,category,description)
 SELECT 'Coke', 1.50, 'Drink', 'Can of coke' WHERE NOT EXISTS (SELECT 1 FROM menu WHERE name='Coke');
+
+-- ensure tokens exist for any preexisting rows
+UPDATE tables SET access_token = md5(random()::text || clock_timestamp()::text) WHERE access_token IS NULL;

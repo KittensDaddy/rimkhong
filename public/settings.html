@@ -13,6 +13,12 @@
   </header>
   <main class="container settings">
     <section>
+      <h2>Admin</h2>
+      <label>Admin token: <input id="admin-token" placeholder="paste admin token"></label>
+      <button id="admin-auth">Load table links</button>
+    </section>
+
+    <section>
       <h2>Tables</h2>
       <label>Number of tables: <input id="table-count" type="number" min="1"></label>
       <button id="save-tables">Save</button>
@@ -33,6 +39,10 @@
       <h2>Sales Report</h2>
       <button id="refresh-report">Refresh</button>
       <pre id="report-output"></pre>
+    </section>
+    <section>
+      <h2>Table links & QR</h2>
+      <div id="table-links"></div>
     </section>
   </main>
   <script src="/assets/settings.js"></script>

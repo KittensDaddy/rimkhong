@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const { Pool } = require('pg');
+const QRCode = require('qrcode');
 
 const app = express();
 app.use(cors());
@@ -10,6 +11,13 @@ app.use(express.json());
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/restaurant'
 });
+
+// Simple admin middleware: protect admin routes with ADMIN_TOKEN env var
+function adminGuard(req,res,next){
+  const token = req.headers['x-admin-token'] || req.query.admin_token;
+  if(process.env.ADMIN_TOKEN && token === process.env.ADMIN_TOKEN) return next();
+  return res.status(401).json({ error: 'unauthorized' });
+}
 
 // Serve static frontend
 app.use(express.static(path.join(__dirname, 'public')));
@@ -38,7 +46,7 @@ app.get('/api/menu/categories', async (req, res) => {
 // Tables overview
 app.get('/api/tables', async (req, res) => {
   try {
-    const r = await pool.query('SELECT * FROM tables ORDER BY id');
+    const r = await pool.query('SELECT id,name,status FROM tables ORDER BY id');
     res.json(r.rows);
   } catch (err) { console.error(err); res.status(500).json({ error: 'db_error' }); }
 });
@@ -54,7 +62,12 @@ app.get('/api/orders/:tableId', async (req, res) => {
 
 // Place an order (create)
 app.post('/api/orders', async (req, res) => {
-  const { table_id, items, total, payment_method } = req.body;
+  const { table_id, items, total, payment_method, token } = req.body;
+  // validate token for table
+  try{
+    const t = await pool.query('SELECT access_token FROM tables WHERE id=$1', [table_id]);
+    if(!t.rows[0] || t.rows[0].access_token !== token) return res.status(403).json({ error: 'invalid_table_token' });
+  }catch(err){ console.error(err); return res.status(500).json({ error:'db_error' }); }
   try {
     const r = await pool.query(
       'INSERT INTO orders(table_id, items, total, payment_method, status, created_at) VALUES($1,$2,$3,$4,$5,now()) RETURNING *',
@@ -63,6 +76,85 @@ app.post('/api/orders', async (req, res) => {
     res.json(r.rows[0]);
   } catch (err) { console.error(err); res.status(500).json({ error: 'db_error' }); }
 });
+
+// Get table info by token (for customer page loading)
+app.get('/api/table-by-token/:token', async (req,res)=>{
+  try{
+    const t = await pool.query('SELECT id,name,status FROM tables WHERE access_token=$1', [req.params.token]);
+    if(!t.rows[0]) return res.status(404).json({ error: 'not_found' });
+    res.json(t.rows[0]);
+  }catch(err){ console.error(err); res.status(500).json({ error:'db_error' }); }
+});
+
+// Admin: regenerate token for a table
+app.post('/api/admin/tables/:id/regenerate-token', async (req,res)=>{
+  const id = parseInt(req.params.id,10);
+  try{
+    const r = await pool.query("UPDATE tables SET access_token = md5(random()::text || clock_timestamp()::text) WHERE id=$1 RETURNING id, access_token", [id]);
+    if(!r.rows[0]) return res.status(404).json({ error:'not_found' });
+    res.json(r.rows[0]);
+  }catch(err){ console.error(err); res.status(500).json({ error:'db_error' }); }
+});
+
+// Admin: list tables with tokens (for settings UI)
+app.get('/api/admin/tables', adminGuard, async (req,res)=>{
+  try{
+    const r = await pool.query('SELECT id,name,status,access_token FROM tables ORDER BY id');
+    // compose customer link base from request
+    const host = (req.get('x-forwarded-proto') || req.protocol) + '://' + req.get('host');
+    const rows = r.rows.map(row=>({ id: row.id, name: row.name, status: row.status, link: `${host}/table/${row.id}/${row.access_token}`, token: row.access_token }));
+    res.json(rows);
+  }catch(err){ console.error(err); res.status(500).json({ error:'db_error' }); }
+});
+
+// Admin: generate QR as PNG for a table link
+app.get('/api/admin/tables/:id/qr', adminGuard, async (req,res)=>{
+  const id = parseInt(req.params.id,10);
+  try{
+    const r = await pool.query('SELECT access_token FROM tables WHERE id=$1', [id]);
+    if(!r.rows[0]) return res.status(404).json({ error:'not_found' });
+    const host = (req.get('x-forwarded-proto') || req.protocol) + '://' + req.get('host');
+    const link = `${host}/table/${id}/${r.rows[0].access_token}`;
+    res.setHeader('Content-Type','image/png');
+    const stream = QRCode.toFileStream(res, link, { type: 'png', width: 300 });
+  }catch(err){ console.error(err); res.status(500).json({ error:'db_error' }); }
+});
+
+// Admin: generate label SVG (QR + table text) for printing; returned as SVG
+app.get('/api/admin/tables/:id/label', adminGuard, async (req,res)=>{
+  const id = parseInt(req.params.id,10);
+  try{
+    const r = await pool.query('SELECT access_token, name FROM tables WHERE id=$1', [id]);
+    if(!r.rows[0]) return res.status(404).json({ error:'not_found' });
+    const host = (req.get('x-forwarded-proto') || req.protocol) + '://' + req.get('host');
+    const link = `${host}/table/${id}/${r.rows[0].access_token}`;
+    // generate QR as SVG fragment
+    const qrSvg = await QRCode.toString(link, { type: 'svg', margin:1, width:300 });
+    // qrSvg is an <svg>...</svg> string. We'll embed it inside a larger SVG label with table name
+    const tableName = r.rows[0].name || `Table ${id}`;
+    const labelSvg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="420" viewBox="0 0 400 420">
+  <rect width="100%" height="100%" fill="#ffffff"/>
+  <g transform="translate(50,20)">
+    ${qrSvg}
+  </g>
+  <text x="200" y="370" font-family="Arial, Helvetica, sans-serif" font-size="36" text-anchor="middle" fill="#111">${escapeXml(tableName)}</text>
+  <text x="200" y="402" font-family="Arial, Helvetica, sans-serif" font-size="14" text-anchor="middle" fill="#666">${escapeXml(link)}</text>
+</svg>`;
+    res.setHeader('Content-Type','image/svg+xml');
+    res.send(labelSvg);
+  }catch(err){ console.error(err); res.status(500).json({ error:'db_error' }); }
+});
+
+// Serve staff page at /plek for easy access
+app.get('/plek', (req,res)=>{
+  res.sendFile(path.join(__dirname, 'public', 'staff.html'));
+});
+
+// helper to escape XML characters for the SVG text
+function escapeXml(unsafe){
+  return String(unsafe).replace(/[&<>"']/g, function (c) { return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&apos;" }[c]; });
+}
 
 // Update order status (paid/cancel/update)
 app.put('/api/orders/:id', async (req, res) => {
