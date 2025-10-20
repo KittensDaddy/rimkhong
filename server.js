@@ -129,21 +129,25 @@ app.post('/api/tables/:id/mark-paid', async (req,res)=>{
   const id = parseInt(req.params.id,10);
   const { payment_method } = req.body;
   try{
-    // fetch unpaid orders
+    // Transactional: lock table row, aggregate orders, append sale to tables.sales_history, update last_sale_*, delete orders, and set status
+    await pool.query('BEGIN');
+    // lock the table row to avoid races
+    const lock = await pool.query('SELECT * FROM tables WHERE id=$1 FOR UPDATE', [id]);
+    if(!lock.rows[0]){ await pool.query('ROLLBACK'); return res.status(404).json({ error:'table_not_found' }); }
     const r = await pool.query("SELECT * FROM orders WHERE table_id=$1 AND status!='paid' ORDER BY created_at", [id]);
     const orders = r.rows;
-    if(orders.length===0) return res.json({ count:0 });
-    // aggregate
+    if(orders.length===0){ await pool.query('ROLLBACK'); return res.json({ count:0 }); }
     const total = orders.reduce((s,o)=>s + Number(o.total||0), 0);
     const firstOrderTime = orders[0].created_at;
-    const ordersJson = JSON.stringify(orders.map(o=>({ id:o.id, items:o.items, total:o.total, created_at:o.created_at })));
+    const ordersJsonArray = orders.map(o=>({ id:o.id, items:o.items, total:o.total, created_at:o.created_at }));
     const paidAt = new Date();
-    // insert single sales record
-    await pool.query('INSERT INTO sales(table_id, orders, first_order_time, total, payment_method, paid_at) VALUES($1,$2,$3,$4,$5,$6)', [id, ordersJson, firstOrderTime, total, payment_method, paidAt]);
-    // delete moved orders (clear current orders for the table)
+    const saleRecord = { table_id: id, orders: ordersJsonArray, first_order_time: firstOrderTime, total, payment_method: payment_method || null, paid_at: paidAt };
+    // append single-element array (so sales_history remains an array of records)
+    await pool.query("UPDATE tables SET sales_history = COALESCE(sales_history,'[]'::jsonb) || $1::jsonb, last_sale_orders = $2::jsonb, last_sale_first_order_time = $3, last_sale_total = $4, last_sale_payment_method = $5, last_sale_paid_at = $6 WHERE id=$7",
+      [JSON.stringify([saleRecord]), JSON.stringify(ordersJsonArray), firstOrderTime, total, payment_method || null, paidAt, id]);
     await pool.query("DELETE FROM orders WHERE table_id=$1", [id]);
-    // update table status to 'paid'
     await pool.query("UPDATE tables SET status='paid' WHERE id=$1", [id]);
+    await pool.query('COMMIT');
     res.json({ count: orders.length });
   }catch(err){ console.error(err); res.status(500).json({ error:'db_error' }); }
 });
@@ -224,6 +228,7 @@ app.get('/plek', (req,res)=>{
 });
 
 // sales report API - filter by paid_at date range (inclusive). Query params: from, to (YYYY-MM-DD). Defaults to today.
+// Sales report (read from per-table sales_history)
 app.get('/api/reports/sales', async (req,res)=>{
   try{
     const { from, to } = req.query;
@@ -231,10 +236,13 @@ app.get('/api/reports/sales', async (req,res)=>{
     const fmt = d=> new Date(d).toISOString().slice(0,10);
     const f = from || fmt(today);
     const t = to || fmt(today);
-    // treat as inclusive range from start of 'from' to end of 'to'
     const fromTs = f + ' 00:00:00';
     const toTs = t + ' 23:59:59';
-    const r = await pool.query("SELECT * FROM sales WHERE paid_at >= $1 AND paid_at <= $2 ORDER BY paid_at DESC", [fromTs, toTs]);
+    const q = `SELECT (s->>'paid_at')::timestamptz as paid_at, (s->>'table_id')::int as table_id, s->>'payment_method' as payment_method, (s->>'total')::numeric as total, s->'orders' as orders
+      FROM tables, jsonb_array_elements(COALESCE(tables.sales_history,'[]'::jsonb)) as s
+      WHERE (s->>'paid_at') IS NOT NULL AND (s->>'paid_at')::timestamptz >= $1 AND (s->>'paid_at')::timestamptz <= $2
+      ORDER BY paid_at DESC`;
+    const r = await pool.query(q, [fromTs, toTs]);
     res.json(r.rows);
   }catch(err){ console.error(err); res.status(500).json({ error:'db_error' }); }
 });
@@ -302,13 +310,7 @@ app.put('/api/menu/:id', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'db_error' }); }
 });
 
-// Sales report
-app.get('/api/reports/sales', async (req, res) => {
-  try {
-    const r = await pool.query("SELECT status, payment_method, COUNT(*) as count, SUM(total) as total FROM orders GROUP BY status, payment_method ORDER BY status");
-    res.json(r.rows);
-  } catch (err) { console.error(err); res.status(500).json({ error: 'db_error' }); }
-});
+// legacy sales-report removed; use the sales_history-backed /api/reports/sales defined earlier
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server listening on ${PORT}`));

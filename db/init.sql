@@ -164,20 +164,11 @@ UPDATE tables SET access_token = md5(random()::text || clock_timestamp()::text) 
 -- ensure orders have served column for older DBs
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS served BOOLEAN DEFAULT FALSE;
 
--- sales archive table: stores completed orders (moved from orders on payment)
-CREATE TABLE IF NOT EXISTS sales (
-  id SERIAL PRIMARY KEY,
-  table_id INT,
-  orders JSONB,
-  first_order_time TIMESTAMP WITH TIME ZONE,
-  total NUMERIC(10,2),
-  payment_method TEXT,
-  paid_at TIMESTAMP WITH TIME ZONE
-);
-
--- Ensure columns exist for older DBs (idempotent)
-ALTER TABLE sales ADD COLUMN IF NOT EXISTS orders JSONB;
-ALTER TABLE sales ADD COLUMN IF NOT EXISTS first_order_time TIMESTAMP WITH TIME ZONE;
-ALTER TABLE sales ADD COLUMN IF NOT EXISTS total NUMERIC(10,2);
-ALTER TABLE sales ADD COLUMN IF NOT EXISTS payment_method TEXT;
-ALTER TABLE sales ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP WITH TIME ZONE;
+-- Per-table sales storage: keep a JSONB history and quick last-sale fields on the tables row.
+-- This moves the sales columns into the tables table so each table stores its own sales history and last-sale summary.
+ALTER TABLE tables ADD COLUMN IF NOT EXISTS sales_history JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE tables ADD COLUMN IF NOT EXISTS last_sale_orders JSONB; -- JSON array of orders for the most recent sale
+ALTER TABLE tables ADD COLUMN IF NOT EXISTS last_sale_first_order_time TIMESTAMP WITH TIME ZONE;
+ALTER TABLE tables ADD COLUMN IF NOT EXISTS last_sale_total NUMERIC(10,2);
+ALTER TABLE tables ADD COLUMN IF NOT EXISTS last_sale_payment_method TEXT;
+ALTER TABLE tables ADD COLUMN IF NOT EXISTS last_sale_paid_at TIMESTAMP WITH TIME ZONE;
