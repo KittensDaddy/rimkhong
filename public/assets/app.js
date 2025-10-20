@@ -69,8 +69,8 @@ async function loadMenu(category){
 async function init(){
   const cats = await apiGet('/menu/categories');
   renderCategories(cats);
-  // default to 'อาหารสด' category for customers
-  const defaultCat = 'อาหารสด';
+  // default to 'อาหารสด (25 บาท)' category for customers
+  const defaultCat = 'อาหารสด (25 บาท)';
   const hasDefault = (cats || []).includes(defaultCat);
   if(hasDefault) await loadMenu(defaultCat); else await loadMenu();
   // If this table has no unpaid orders, force-add the mandatory opening set (ชุดเปิดเตา) once
