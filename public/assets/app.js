@@ -73,6 +73,19 @@ async function init(){
   const defaultCat = 'อาหารสด';
   const hasDefault = (cats || []).includes(defaultCat);
   if(hasDefault) await loadMenu(defaultCat); else await loadMenu();
+  // If this table has no unpaid orders, force-add the mandatory opening set (ชุดเปิดเตา) once
+  try{
+    const existing = await apiGet('/orders/' + CART.table);
+    if((existing || []).length === 0){
+      // find the mandatory item from the full menu
+      const all = await apiGet('/menu');
+      const mandatory = (all || []).find(it => it.name === 'ชุดเปิดเตา');
+      if(mandatory){
+        const already = CART.items.find(i=>i.name===mandatory.name || i.id===mandatory.id);
+        if(!already) addToCart(mandatory);
+      }
+    }
+  }catch(e){ console.warn('Could not check existing orders for mandatory set', e); }
   renderCart();
   document.getElementById('title').textContent = `Menu - Table ${CART.table}`;
   if(!CART.token){
