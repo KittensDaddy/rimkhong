@@ -21,14 +21,16 @@ let CART = { items: [], table: PATH.table, token: PATH.token };
 function renderCategories(categories){
   const el = document.getElementById('categories');
   el.innerHTML = '';
-  const all = document.createElement('button'); all.textContent='All'; all.onclick = ()=>loadMenu(); el.appendChild(all);
-  categories.forEach(c=>{ const b=document.createElement('button'); b.textContent=c; b.onclick=()=>loadMenu(c); el.appendChild(b); });
+  // hide the special required set category from customer view
+  const hiddenCategory = 'ชุดเปิดเตา (บังคับเลือก)';
+  categories.filter(c=>c!==hiddenCategory).forEach(c=>{ const b=document.createElement('button'); b.textContent=c; b.onclick=()=>loadMenu(c); el.appendChild(b); });
 }
 
 function renderMenu(items){
   const el = document.getElementById('menu-list');
   el.innerHTML = '';
-  items.forEach(it=>{
+  // hide mandatory opening set item from customer menu
+  items.filter(it=>it.name !== 'ชุดเปิดเตา').forEach(it=>{
     const row = document.createElement('div'); row.className='menu-item';
     row.innerHTML = `<div><strong>${it.name}</strong><div class="muted">${it.category} - ${it.description||''}</div></div><div><div>${Number(it.price).toFixed(2)}</div><button data-id="${it.id}">Add</button></div>`;
     row.querySelector('button').addEventListener('click',()=>{ addToCart(it); });
@@ -67,7 +69,10 @@ async function loadMenu(category){
 async function init(){
   const cats = await apiGet('/menu/categories');
   renderCategories(cats);
-  await loadMenu();
+  // default to 'อาหารสด' category for customers
+  const defaultCat = 'อาหารสด';
+  const hasDefault = (cats || []).includes(defaultCat);
+  if(hasDefault) await loadMenu(defaultCat); else await loadMenu();
   renderCart();
   document.getElementById('title').textContent = `Menu - Table ${CART.table}`;
   if(!CART.token){
