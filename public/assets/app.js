@@ -122,8 +122,8 @@ async function init(){
   await renderOrdersPanel();
   document.getElementById('title').textContent = `Menu - Table ${CART.table}`;
   if(!CART.token){
-    // indicate invalid access
-    const warn = document.createElement('div'); warn.style.color='red'; warn.textContent = 'This page requires a table-specific QR link. Please use the QR code on your table.';
+    // indicate invalid access (Thai message)
+    const warn = document.createElement('div'); warn.style.color='red'; warn.textContent = 'กรุณาแสกน QR Code ที่โต๊ะเพื่อสั่งอาหาร';
     document.querySelector('.container').prepend(warn);
   }
 }

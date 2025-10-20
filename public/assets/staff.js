@@ -51,10 +51,28 @@ async function showOrders(tableId){
     modal.querySelector('#pay-cancel').addEventListener('click', ()=> modal.remove());
 
     modal.querySelector('#pay-cash').addEventListener('click', async ()=>{
-      // calculate total from current unpaid orders
+      // calculate total from current unpaid orders and aggregate identical menu items
       const orders = await api(`/tables/${tableId}/orders`);
-      const total = (orders || []).reduce((s,o)=>s + Number(o.total||0), 0);
-      box.innerHTML = `<h3>สรุปการชำระ (เงินสด)</h3><div>จำนวนรายการ: ${(orders||[]).length}</div><div>ยอดรวม: <strong>${total.toFixed(2)} ฿</strong></div><div style="margin-top:12px"><button id="confirm-cash">รับเงินแล้ว</button><button id="cancel-cash" style="margin-left:8px">ยกเลิก</button></div>`;
+      // orders are per-item rows, but each order may contain an items array with one element
+      const flatItems = [];
+      (orders || []).forEach(o=>{
+        const items = Array.isArray(o.items) ? o.items : (o.items && JSON.parse(o.items)) || [];
+        items.forEach(it=> flatItems.push({ id: it.id, name: it.name, price: Number(it.price || 0) }));
+      });
+      // aggregate by id (fallback to name)
+      const agg = {};
+      flatItems.forEach(it=>{
+        const key = it.id != null ? String(it.id) : it.name;
+        if(!agg[key]) agg[key] = { id: it.id, name: it.name, price: it.price, qty: 0 };
+        agg[key].qty += 1;
+      });
+      const lines = Object.values(agg);
+      const total = lines.reduce((s,l)=> s + l.price * l.qty, 0);
+      // build summary HTML with merged lines
+      let listHtml = '<ul style="padding-left:16px;margin-top:8px">';
+      lines.forEach(l=>{ listHtml += `<li>${escapeHtml(l.name)} x${l.qty} — ${(l.price * l.qty).toFixed(2)} ฿</li>`; });
+      listHtml += '</ul>';
+      box.innerHTML = `<h3>สรุปการชำระ (เงินสด)</h3><div>จำนวนรายการรวม: ${lines.reduce((s,l)=>s+l.qty,0)}</div>${listHtml}<div>ยอดรวม: <strong>${total.toFixed(2)} ฿</strong></div><div style="margin-top:12px"><button id="confirm-cash">รับเงินแล้ว</button><button id="cancel-cash" style="margin-left:8px">ยกเลิก</button></div>`;
       box.querySelector('#cancel-cash').addEventListener('click', ()=> modal.remove());
       box.querySelector('#confirm-cash').addEventListener('click', async ()=>{
         const res = await fetch('/api/tables/'+tableId+'/mark-paid', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ payment_method: 'cash' }) });
@@ -103,3 +121,6 @@ async function showOrders(tableId){
 }
 
 loadTables();
+
+// small helper to escape HTML
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
