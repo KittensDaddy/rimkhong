@@ -43,13 +43,45 @@ async function showOrders(tableId){
   const paidWrap = document.createElement('div'); paidWrap.style.marginTop='12px';
   const paidBtn = document.createElement('button'); paidBtn.textContent='ชำระเงินทั้งหมด';
   paidBtn.addEventListener('click', async ()=>{
-    const method = prompt('วิธีการชำระ (เช่น เงินสด, QR)', 'เงินสด');
-    if(!method) return;
-    const res = await fetch('/api/tables/'+tableId+'/mark-paid', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ payment_method: method }) });
-    const j = await res.json();
-    alert('ทำการบันทึกการชำระสำหรับ '+ (j.count||0) +' รายการ');
-    await loadTables();
-    panel.innerHTML = '';
+    // create modal area inside panel
+    const modal = document.createElement('div'); modal.style.position='fixed'; modal.style.left='0'; modal.style.top='0'; modal.style.right='0'; modal.style.bottom='0'; modal.style.background='rgba(0,0,0,0.4)'; modal.style.display='flex'; modal.style.alignItems='center'; modal.style.justifyContent='center';
+    const box = document.createElement('div'); box.style.background='#fff'; box.style.padding='16px'; box.style.borderRadius='8px'; box.style.width='320px';
+    box.innerHTML = `<h3>เลือกวิธีการชำระ</h3><div style="display:flex;gap:8px;margin-top:8px"><button id="pay-cash">เงินสด</button><button id="pay-qr">QR</button><button id="pay-cancel" style="margin-left:8px">ยกเลิก</button></div>`;
+    modal.appendChild(box); document.body.appendChild(modal);
+    modal.querySelector('#pay-cancel').addEventListener('click', ()=> modal.remove());
+
+    modal.querySelector('#pay-cash').addEventListener('click', async ()=>{
+      // calculate total from current unpaid orders
+      const orders = await api(`/tables/${tableId}/orders`);
+      const total = (orders || []).reduce((s,o)=>s + Number(o.total||0), 0);
+      box.innerHTML = `<h3>สรุปการชำระ (เงินสด)</h3><div>จำนวนรายการ: ${(orders||[]).length}</div><div>ยอดรวม: <strong>${total.toFixed(2)} ฿</strong></div><div style="margin-top:12px"><button id="confirm-cash">รับเงินแล้ว</button><button id="cancel-cash" style="margin-left:8px">ยกเลิก</button></div>`;
+      box.querySelector('#cancel-cash').addEventListener('click', ()=> modal.remove());
+      box.querySelector('#confirm-cash').addEventListener('click', async ()=>{
+        const res = await fetch('/api/tables/'+tableId+'/mark-paid', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ payment_method: 'cash' }) });
+        const j = await res.json();
+        alert('ทำการบันทึกการชำระสำหรับ '+ (j.count||0) +' รายการ');
+        modal.remove(); await loadTables(); panel.innerHTML='';
+      });
+    });
+
+    modal.querySelector('#pay-qr').addEventListener('click', async ()=>{
+      // fetch payment info and show QR
+      const info = await api('/payment-info');
+      if(!info){ box.innerHTML = `<h3>QR ไม่พร้อมใช้งาน</h3><div>ยังไม่ได้ตั้งค่า QR</div><div style="margin-top:12px"><button id="cancel-qr">ปิด</button></div>`; box.querySelector('#cancel-qr').addEventListener('click', ()=> modal.remove()); return; }
+      box.innerHTML = `<h3>ชำระด้วย QR</h3><div>${info.account_name || ''} - ${info.bank || ''}</div><div id="qr-holder" style="margin-top:8px"></div><div style="margin-top:12px"><button id="confirm-qr">รับเงินแล้ว</button><button id="cancel-qr" style="margin-left:8px">ยกเลิก</button></div>`;
+      const qrHolder = box.querySelector('#qr-holder');
+      // show PNG QR image
+      const img = document.createElement('img'); img.style.width='200px'; img.style.height='200px'; img.alt='QR';
+      img.src = '/api/payment-info/' + info.id + '/qr';
+      qrHolder.appendChild(img);
+      box.querySelector('#cancel-qr').addEventListener('click', ()=> modal.remove());
+      box.querySelector('#confirm-qr').addEventListener('click', async ()=>{
+        const res = await fetch('/api/tables/'+tableId+'/mark-paid', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ payment_method: 'qr' }) });
+        const j = await res.json();
+        alert('ทำการบันทึกการชำระสำหรับ '+ (j.count||0) +' รายการ');
+        modal.remove(); await loadTables(); panel.innerHTML='';
+      });
+    });
   });
   paidWrap.appendChild(paidBtn);
   // show clean button only if table is paid

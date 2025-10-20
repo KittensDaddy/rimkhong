@@ -94,3 +94,32 @@ async function loadTableLinks(){
 
 // load table links on page load (staff will access this by visiting /plek and then settings)
 loadTableLinks();
+
+// Payment info UI
+document.getElementById('pay-file').addEventListener('change', async (e)=>{
+  const f = e.target.files[0]; if(!f) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{ document.getElementById('pay-preview').innerHTML = `<img src="${reader.result}" style="max-width:240px" />`; document.getElementById('pay-preview').dataset.base64 = reader.result; };
+  reader.readAsDataURL(f);
+});
+
+document.getElementById('save-pay').addEventListener('click', async ()=>{
+  const name = document.getElementById('pay-name').value;
+  const bank = document.getElementById('pay-bank').value;
+  const base64 = document.getElementById('pay-preview').dataset.base64 || null;
+  const payload = { account_name: name, bank: bank, qr_image_base64: base64 };
+  const res = await api('/payment-info', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(payload) });
+  if(res) alert('Saved payment info'); else alert('Save failed');
+});
+
+// load existing payment info into preview
+async function loadPaymentInfo(){
+  try{
+    const p = await api('/payment-info');
+    if(!p) return;
+    document.getElementById('pay-name').value = p.account_name || '';
+    document.getElementById('pay-bank').value = p.bank || '';
+    if(p.qr_image_base64){ document.getElementById('pay-preview').innerHTML = `<img src="${p.qr_image_base64}" style="max-width:240px" />`; document.getElementById('pay-preview').dataset.base64 = p.qr_image_base64; }
+  }catch(e){ console.warn('Could not load payment info', e); }
+}
+loadPaymentInfo();

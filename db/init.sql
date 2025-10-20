@@ -173,3 +173,15 @@ CREATE TABLE IF NOT EXISTS bills (
 
 -- Index on paid_at for faster reporting
 CREATE INDEX IF NOT EXISTS idx_bills_paid_at ON bills(paid_at);
+
+-- Payment info: store a single payment payload (e.g., PromptPay string) and display metadata
+CREATE TABLE IF NOT EXISTS payment_info (
+  id SERIAL PRIMARY KEY,
+  account_name TEXT,
+  bank TEXT,
+  qr_payload TEXT, -- arbitrary string to encode into QR (e.g., promptpay payload or payment URL)
+  qr_image_base64 TEXT -- optional base64-encoded image uploaded by staff
+);
+
+-- ensure column exists for older DBs
+ALTER TABLE payment_info ADD COLUMN IF NOT EXISTS qr_image_base64 TEXT;

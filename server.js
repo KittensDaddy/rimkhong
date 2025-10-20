@@ -230,6 +230,42 @@ app.get('/api/admin/tables/:id/label', async (req,res)=>{
   }catch(err){ console.error(err); res.status(500).json({ error:'db_error' }); }
 });
 
+// Payment info endpoint - returns stored payment_info row (admin should seed one)
+app.get('/api/payment-info', async (req,res)=>{
+  try{
+    const r = await pool.query('SELECT * FROM payment_info ORDER BY id DESC LIMIT 1');
+    res.json(r.rows[0] || null);
+  }catch(err){ console.error(err); res.status(500).json({ error:'db_error' }); }
+});
+
+// Return PNG QR for payment payload
+app.get('/api/payment-info/:id/qr', async (req,res)=>{
+  const id = parseInt(req.params.id,10);
+  try{
+    const r = await pool.query('SELECT qr_payload, qr_image_base64 FROM payment_info WHERE id=$1', [id]);
+    if(!r.rows[0]) return res.status(404).json({ error:'not_found' });
+    const row = r.rows[0];
+    if(row.qr_image_base64){
+      // stored base64 (data only) - return as PNG
+      const data = row.qr_image_base64.replace(/^data:image\/(png|jpeg);base64,/, '');
+      const buf = Buffer.from(data, 'base64');
+      res.setHeader('Content-Type', 'image/png');
+      return res.send(buf);
+    }
+    res.setHeader('Content-Type','image/png');
+    await QRCode.toFileStream(res, row.qr_payload, { type:'png', width: 300 });
+  }catch(err){ console.error(err); res.status(500).json({ error:'db_error' }); }
+});
+
+// Create or update payment_info (admin)
+app.post('/api/payment-info', async (req,res)=>{
+  const { account_name, bank, qr_payload, qr_image_base64 } = req.body;
+  try{
+    const r = await pool.query('INSERT INTO payment_info(account_name, bank, qr_payload, qr_image_base64) VALUES($1,$2,$3,$4) RETURNING *', [account_name||null, bank||null, qr_payload||null, qr_image_base64||null]);
+    res.json(r.rows[0]);
+  }catch(err){ console.error(err); res.status(500).json({ error:'db_error' }); }
+});
+
 // Serve staff page at /plek for easy access
 app.get('/plek', (req,res)=>{
   res.sendFile(path.join(__dirname, 'public', 'staff.html'));
