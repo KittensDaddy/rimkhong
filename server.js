@@ -309,6 +309,16 @@ app.put('/api/menu/:id', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'db_error' }); }
 });
 
+// Delete a menu item
+app.delete('/api/menu/:id', async (req, res) => {
+  const id = parseInt(req.params.id,10);
+  try {
+    const r = await pool.query('DELETE FROM menu WHERE id=$1 RETURNING *', [id]);
+    if(!r.rows[0]) return res.status(404).json({ error: 'not_found' });
+    res.json({ deleted: r.rows[0] });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'db_error' }); }
+});
+
 // legacy sales-report removed; use the sales_history-backed /api/reports/sales defined earlier
 
 const PORT = process.env.PORT || 3000;
