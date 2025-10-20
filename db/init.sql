@@ -167,11 +167,17 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS served BOOLEAN DEFAULT FALSE;
 -- sales archive table: stores completed orders (moved from orders on payment)
 CREATE TABLE IF NOT EXISTS sales (
   id SERIAL PRIMARY KEY,
-  orig_order_id INT,
   table_id INT,
-  items JSONB,
+  orders JSONB,
+  first_order_time TIMESTAMP WITH TIME ZONE,
   total NUMERIC(10,2),
   payment_method TEXT,
-  created_at TIMESTAMP WITH TIME ZONE,
   paid_at TIMESTAMP WITH TIME ZONE
 );
+
+-- Ensure columns exist for older DBs (idempotent)
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS orders JSONB;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS first_order_time TIMESTAMP WITH TIME ZONE;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS total NUMERIC(10,2);
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS payment_method TEXT;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP WITH TIME ZONE;

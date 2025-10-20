@@ -32,15 +32,15 @@ async function loadTableLinks(){
   try{
     const tables = await api('/admin/tables');
     const container = document.getElementById('table-links'); container.innerHTML='';
-  if(!tables || tables.length===0){ container.textContent = 'No tables found.'; return; }
+  if(!tables || tables.length===0){ container.textContent = 'ไม่พบโต๊ะ'; return; }
     for(const t of tables){
       const row = document.createElement('div'); row.className='menu-item';
       const left = document.createElement('div');
       left.innerHTML = `<strong>${t.name}</strong><div class="muted">${t.link}</div>`;
       const right = document.createElement('div');
-  const qrBtn = document.createElement('button'); qrBtn.textContent='Show QR';
-  const downloadBtn = document.createElement('button'); downloadBtn.textContent='Download PNG';
-  const regenBtn = document.createElement('button'); regenBtn.textContent='Regenerate';
+  const qrBtn = document.createElement('button'); qrBtn.textContent='แสดง QR';
+  const downloadBtn = document.createElement('button'); downloadBtn.textContent='ดาวน์โหลด PNG';
+  const regenBtn = document.createElement('button'); regenBtn.textContent='สร้างใหม่';
   right.appendChild(qrBtn); right.appendChild(downloadBtn); right.appendChild(regenBtn);
       row.appendChild(left); row.appendChild(right);
       container.appendChild(row);
@@ -64,7 +64,7 @@ async function loadTableLinks(){
       downloadBtn.addEventListener('click', async ()=>{
         try{
           const res = await fetch('/api/admin/tables/'+t.id+'/label');
-          if(!res.ok) return alert('Failed to load label for download');
+          if(!res.ok) return alert('ไม่สามารถโหลดป้ายสำหรับดาวน์โหลดได้');
           const svgText = await res.text();
           const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
           const url = URL.createObjectURL(svgBlob);
@@ -77,7 +77,7 @@ async function loadTableLinks(){
               const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${t.name.replace(/\s+/g,'_')}_label.png`; document.body.appendChild(a); a.click(); a.remove();
             }, 'image/png');
           };
-          img.onerror = ()=> alert('Failed to render SVG to image');
+          img.onerror = ()=> alert('ไม่สามารถแปลง SVG เป็นรูปภาพได้');
           img.src = url;
         }catch(err){ console.error(err); alert('Download failed'); }
       });
@@ -85,7 +85,7 @@ async function loadTableLinks(){
       regenBtn.addEventListener('click', async ()=>{
   const res = await fetch('/api/admin/tables/'+t.id+'/regenerate-token', { method:'POST' });
         const j = await res.json().catch(()=>null);
-        if(res.ok){ alert('Regenerated token for '+t.name); loadTableLinks(); } else { alert('Regenerate failed: '+(j?.error||res.status)); }
+  if(res.ok){ alert('สร้างโทเค่นใหม่สำหรับ '+t.name); loadTableLinks(); } else { alert('การสร้างใหม่ล้มเหลว: '+(j?.error||res.status)); }
       });
     }
   }catch(err){ console.error(err); alert('Failed to load table links.'); }

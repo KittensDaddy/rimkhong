@@ -70,11 +70,22 @@ app.post('/api/orders', async (req, res) => {
     if(!t.rows[0] || t.rows[0].access_token !== token) return res.status(403).json({ error: 'invalid_table_token' });
   }catch(err){ console.error(err); return res.status(500).json({ error:'db_error' }); }
   try {
-    const r = await pool.query(
-      'INSERT INTO orders(table_id, items, total, payment_method, status, created_at) VALUES($1,$2,$3,$4,$5,now()) RETURNING *',
-      [table_id, JSON.stringify(items), total, payment_method || 'pending', 'pending']
-    );
-    res.json(r.rows[0]);
+    // Create one order row per item instance so staff can mark individual items served.
+    const created = [];
+    for(const it of items){
+      const qty = Number(it.qty || 1);
+      for(let i=0;i<qty;i++){
+        const singleItem = { id: it.id, name: it.name, price: it.price, qty: 1 };
+        const r = await pool.query(
+          'INSERT INTO orders(table_id, items, total, payment_method, status, created_at) VALUES($1,$2,$3,$4,$5,now()) RETURNING *',
+          [table_id, JSON.stringify([singleItem]), singleItem.price, payment_method || 'pending', 'pending']
+        );
+        created.push(r.rows[0]);
+      }
+    }
+    // mark table as having pending orders
+    await pool.query("UPDATE tables SET status='order_pending' WHERE id=$1", [table_id]);
+    res.json({ created, count: created.length });
   } catch (err) { console.error(err); res.status(500).json({ error: 'db_error' }); }
 });
 
@@ -92,7 +103,15 @@ app.post('/api/orders/:id/serve', async (req,res)=>{
   const id = parseInt(req.params.id,10);
   try{
     const r = await pool.query('UPDATE orders SET served = TRUE WHERE id=$1 RETURNING *', [id]);
-    res.json(r.rows[0]);
+    const updated = r.rows[0];
+    if(!updated) return res.status(404).json({ error:'not_found' });
+    // check if any non-paid orders for this table remain unserved
+    const chk = await pool.query("SELECT COUNT(*)::int as c FROM orders WHERE table_id=$1 AND served = FALSE AND status != 'paid'", [updated.table_id]);
+    if(chk.rows[0].c === 0){
+      // all current orders served
+      await pool.query("UPDATE tables SET status='served' WHERE id=$1", [updated.table_id]);
+    }
+    res.json(updated);
   }catch(err){ console.error(err); res.status(500).json({ error:'db_error' }); }
 });
 
@@ -111,20 +130,31 @@ app.post('/api/tables/:id/mark-paid', async (req,res)=>{
   const { payment_method } = req.body;
   try{
     // fetch unpaid orders
-    const r = await pool.query("SELECT * FROM orders WHERE table_id=$1 AND status!='paid'", [id]);
+    const r = await pool.query("SELECT * FROM orders WHERE table_id=$1 AND status!='paid' ORDER BY created_at", [id]);
     const orders = r.rows;
     if(orders.length===0) return res.json({ count:0 });
-    // mark orders as paid and set payment method and paid_at
-    await pool.query("UPDATE orders SET status='paid', payment_method=$1, paid_at=now() WHERE table_id=$2 AND status!='paid'", [payment_method, id]);
-    // move to sales archive
-    for(const o of orders){
-      await pool.query('INSERT INTO sales(orig_order_id, table_id, items, total, payment_method, created_at, paid_at) VALUES($1,$2,$3,$4,$5,$6,$7)', [o.id, o.table_id, o.items, o.total, payment_method || o.payment_method, o.created_at, new Date()]);
-    }
+    // aggregate
+    const total = orders.reduce((s,o)=>s + Number(o.total||0), 0);
+    const firstOrderTime = orders[0].created_at;
+    const ordersJson = JSON.stringify(orders.map(o=>({ id:o.id, items:o.items, total:o.total, created_at:o.created_at })));
+    const paidAt = new Date();
+    // insert single sales record
+    await pool.query('INSERT INTO sales(table_id, orders, first_order_time, total, payment_method, paid_at) VALUES($1,$2,$3,$4,$5,$6)', [id, ordersJson, firstOrderTime, total, payment_method, paidAt]);
     // delete moved orders (clear current orders for the table)
     await pool.query("DELETE FROM orders WHERE table_id=$1", [id]);
     // update table status to 'paid'
     await pool.query("UPDATE tables SET status='paid' WHERE id=$1", [id]);
     res.json({ count: orders.length });
+  }catch(err){ console.error(err); res.status(500).json({ error:'db_error' }); }
+});
+
+// Mark table as cleaned/available (after paid and cleared)
+app.post('/api/tables/:id/clean', async (req,res)=>{
+  const id = parseInt(req.params.id,10);
+  try{
+    await pool.query("UPDATE tables SET status='available' WHERE id=$1", [id]);
+    const r = await pool.query('SELECT id,name,status FROM tables WHERE id=$1', [id]);
+    res.json(r.rows[0]);
   }catch(err){ console.error(err); res.status(500).json({ error:'db_error' }); }
 });
 
@@ -191,6 +221,27 @@ app.get('/api/admin/tables/:id/label', async (req,res)=>{
 // Serve staff page at /plek for easy access
 app.get('/plek', (req,res)=>{
   res.sendFile(path.join(__dirname, 'public', 'staff.html'));
+});
+
+// sales report API - filter by paid_at date range (inclusive). Query params: from, to (YYYY-MM-DD). Defaults to today.
+app.get('/api/reports/sales', async (req,res)=>{
+  try{
+    const { from, to } = req.query;
+    const today = new Date();
+    const fmt = d=> new Date(d).toISOString().slice(0,10);
+    const f = from || fmt(today);
+    const t = to || fmt(today);
+    // treat as inclusive range from start of 'from' to end of 'to'
+    const fromTs = f + ' 00:00:00';
+    const toTs = t + ' 23:59:59';
+    const r = await pool.query("SELECT * FROM sales WHERE paid_at >= $1 AND paid_at <= $2 ORDER BY paid_at DESC", [fromTs, toTs]);
+    res.json(r.rows);
+  }catch(err){ console.error(err); res.status(500).json({ error:'db_error' }); }
+});
+
+// serve a simple sales report page for staff
+app.get('/plek/sales', (req,res)=>{
+  res.sendFile(path.join(__dirname,'public','plek-sales.html'));
 });
 
 // Serve customer page for tokenized table URLs (so /table/:id/:token loads the SPA)
