@@ -15,9 +15,10 @@ body{margin:0;padding:0;background:#f7f7f8;color:#111}
 .cart-footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
 .tables-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .table-card{padding:12px;border-radius:8px;text-align:center;color:#fff}
-.table-available{background:var(--ok)}
-.table-pending{background:var(--warn)}
-.table-paid{background:var(--accent)}
+.table-available{background:#ffffff;color:#111;border:1px solid #ddd}
+.table-pending{background:var(--warn);color:#111}
+.table-paid{background:#111;color:#fff}
+.table-card{cursor:pointer}
 @media(max-width:600px){.tables-grid{grid-template-columns:repeat(2,1fr)}.cart{width:90%;left:5%;right:5%}}
 
 .settings .menu-item{flex-direction:row;align-items:center}

@@ -87,6 +87,47 @@ app.get('/api/table-by-token/:token', async (req,res)=>{
   }catch(err){ console.error(err); res.status(500).json({ error:'db_error' }); }
 });
 
+// Mark a specific order as served
+app.post('/api/orders/:id/serve', async (req,res)=>{
+  const id = parseInt(req.params.id,10);
+  try{
+    const r = await pool.query('UPDATE orders SET served = TRUE WHERE id=$1 RETURNING *', [id]);
+    res.json(r.rows[0]);
+  }catch(err){ console.error(err); res.status(500).json({ error:'db_error' }); }
+});
+
+// Get detailed orders for a table (detailed view)
+app.get('/api/tables/:id/orders', async (req,res)=>{
+  const id = parseInt(req.params.id,10);
+  try{
+    const r = await pool.query('SELECT * FROM orders WHERE table_id=$1 ORDER BY created_at', [id]);
+    res.json(r.rows);
+  }catch(err){ console.error(err); res.status(500).json({ error:'db_error' }); }
+});
+
+// Mark all orders for a table as paid and move them to sales; returns count
+app.post('/api/tables/:id/mark-paid', async (req,res)=>{
+  const id = parseInt(req.params.id,10);
+  const { payment_method } = req.body;
+  try{
+    // fetch unpaid orders
+    const r = await pool.query("SELECT * FROM orders WHERE table_id=$1 AND status!='paid'", [id]);
+    const orders = r.rows;
+    if(orders.length===0) return res.json({ count:0 });
+    // mark orders as paid and set payment method and paid_at
+    await pool.query("UPDATE orders SET status='paid', payment_method=$1, paid_at=now() WHERE table_id=$2 AND status!='paid'", [payment_method, id]);
+    // move to sales archive
+    for(const o of orders){
+      await pool.query('INSERT INTO sales(orig_order_id, table_id, items, total, payment_method, created_at, paid_at) VALUES($1,$2,$3,$4,$5,$6,$7)', [o.id, o.table_id, o.items, o.total, payment_method || o.payment_method, o.created_at, new Date()]);
+    }
+    // delete moved orders (clear current orders for the table)
+    await pool.query("DELETE FROM orders WHERE table_id=$1", [id]);
+    // update table status to 'paid'
+    await pool.query("UPDATE tables SET status='paid' WHERE id=$1", [id]);
+    res.json({ count: orders.length });
+  }catch(err){ console.error(err); res.status(500).json({ error:'db_error' }); }
+});
+
 // Admin: regenerate token for a table
 app.post('/api/admin/tables/:id/regenerate-token', async (req,res)=>{
   const id = parseInt(req.params.id,10);

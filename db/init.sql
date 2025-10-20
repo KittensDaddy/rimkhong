@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS orders (
   total NUMERIC(10,2) NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending', -- pending, paid, cancelled
   payment_method TEXT, -- cash, qr, etc
+  served BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   paid_at TIMESTAMP WITH TIME ZONE
 );
@@ -159,3 +160,18 @@ INSERT INTO menu(name,price,category,description)
 SELECT 'โซดา',15,'เครื่องดื่ม',NULL WHERE NOT EXISTS (SELECT 1 FROM menu WHERE name='โซดา');
 
 UPDATE tables SET access_token = md5(random()::text || clock_timestamp()::text) WHERE access_token IS NULL;
+
+-- ensure orders have served column for older DBs
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS served BOOLEAN DEFAULT FALSE;
+
+-- sales archive table: stores completed orders (moved from orders on payment)
+CREATE TABLE IF NOT EXISTS sales (
+  id SERIAL PRIMARY KEY,
+  orig_order_id INT,
+  table_id INT,
+  items JSONB,
+  total NUMERIC(10,2),
+  payment_method TEXT,
+  created_at TIMESTAMP WITH TIME ZONE,
+  paid_at TIMESTAMP WITH TIME ZONE
+);
