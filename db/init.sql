@@ -45,25 +45,6 @@ SELECT 'Coke', 1.50, 'Drink', 'Can of coke' WHERE NOT EXISTS (SELECT 1 FROM menu
 -- populate tokens for rows missing them
 
 -- Seed Thai menu (idempotent)
--- Category: เลือกโต๊ะ (table selection as menu items with price 0)
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM menu WHERE name = 'โต๊ะ 1') THEN
-    INSERT INTO menu(name,price,category,description)
-    VALUES
-    ('โต๊ะ 1',0,'เลือกโต๊ะ',NULL),
-    ('โต๊ะ 2',0,'เลือกโต๊ะ',NULL),
-    ('โต๊ะ 3',0,'เลือกโต๊ะ',NULL),
-    ('โต๊ะ 4',0,'เลือกโต๊ะ',NULL),
-    ('โต๊ะ 5',0,'เลือกโต๊ะ',NULL),
-    ('โต๊ะ 6',0,'เลือกโต๊ะ',NULL),
-    ('โต๊ะ 7',0,'เลือกโต๊ะ',NULL),
-    ('โต๊ะ 8',0,'เลือกโต๊ะ',NULL),
-    ('โต๊ะ 9',0,'เลือกโต๊ะ',NULL),
-    ('โต๊ะ 10',0,'เลือกโต๊ะ',NULL);
-  END IF;
-END$$;
-
 -- ชุดเปิดเตา (mandatory opening set)
 INSERT INTO menu(name,price,category,description)
 SELECT 'ชุดเปิดเตา', 99, 'ชุดเปิดเตา (บังคับเลือก)', NULL

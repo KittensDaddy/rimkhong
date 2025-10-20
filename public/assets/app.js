@@ -18,12 +18,18 @@ function parsePath(){
 const PATH = parsePath();
 let CART = { items: [], table: PATH.table, token: PATH.token };
 
+let CURRENT_CATEGORY = null;
+function markCategorySelected(){ document.querySelectorAll('#categories button').forEach(btn=>{ btn.classList.toggle('selected', btn.textContent===CURRENT_CATEGORY); }); }
 function renderCategories(categories){
   const el = document.getElementById('categories');
   el.innerHTML = '';
   // hide the special required set category from customer view
   const hiddenCategory = 'ชุดเปิดเตา (บังคับเลือก)';
-  categories.filter(c=>c!==hiddenCategory).forEach(c=>{ const b=document.createElement('button'); b.textContent=c; b.onclick=()=>loadMenu(c); el.appendChild(b); });
+  categories.filter(c=>c!==hiddenCategory).forEach(c=>{
+    const b=document.createElement('button'); b.textContent=c; b.onclick=()=>{ CURRENT_CATEGORY=c; markCategorySelected(); loadMenu(c); }; el.appendChild(b);
+  });
+  // ensure selected style is set
+  markCategorySelected();
 }
 
 function renderMenu(items){
@@ -98,7 +104,7 @@ async function init(){
   // default to 'อาหารสด (25 บาท)' category for customers
   const defaultCat = 'อาหารสด (25 บาท)';
   const hasDefault = (cats || []).includes(defaultCat);
-  if(hasDefault) await loadMenu(defaultCat); else await loadMenu();
+  if(hasDefault){ CURRENT_CATEGORY = defaultCat; markCategorySelected(); await loadMenu(defaultCat); } else { await loadMenu(); }
   // If this table has no unpaid orders, force-add the mandatory opening set (ชุดเปิดเตา) once
   try{
     const existing = await apiGet('/orders/' + CART.table);

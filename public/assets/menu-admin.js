@@ -14,10 +14,22 @@ async function load(){
   tableBody.innerHTML = '';
   items.forEach(it=>{
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${it.id}</td><td>${it.name}</td><td>${Number(it.price).toFixed(2)}</td><td>${it.category}</td><td class="muted">${it.description||''}</td><td><button data-id="${it.id}" class="edit">Edit</button> <button data-id="${it.id}" class="del">Delete</button></td>`;
+    const availChecked = it.available === undefined ? true : !!it.available;
+    tr.innerHTML = `<td>${it.id}</td><td>${it.name}</td><td>${Number(it.price).toFixed(2)}</td><td>${it.category}</td><td><input type="checkbox" data-id="avail-${it.id}" ${availChecked? 'checked':''} /></td><td class="muted">${it.description||''}</td><td><button data-id="${it.id}" class="edit">Edit</button> <button data-id="${it.id}" class="del">Delete</button></td>`;
     tableBody.appendChild(tr);
   });
   attachButtons();
+  // attach availability toggles
+  items.forEach(it=>{
+    const cb = document.querySelector(`input[data-id="avail-${it.id}"]`);
+    if(cb){ cb.addEventListener('change', async e=>{
+      const newVal = e.target.checked;
+      // send update with only available flag (server will set other fields default)
+      const body = { name: it.name, price: it.price, category: it.category, available: newVal };
+      const res = await apiPut('/menu/' + it.id, body);
+      if(!res.ok) alert('Could not update availability');
+    }); }
+  });
 }
 
 function attachButtons(){
@@ -58,7 +70,7 @@ form.addEventListener('submit', async e=>{
 
 document.getElementById('cancel').addEventListener('click', e=>{ resetForm(); });
 
-function resetForm(){ document.getElementById('m-id').value=''; document.getElementById('m-name').value=''; document.getElementById('m-price').value=''; document.getElementById('m-category').value=''; document.getElementById('m-desc').value=''; title.textContent='Add new item'; }
+function resetForm(){ document.getElementById('m-id').value=''; document.getElementById('m-name').value=''; document.getElementById('m-price').value=''; document.getElementById('m-category').value=''; title.textContent='Add new item'; document.getElementById('m-available').checked=true; updateThumb(); }
 
 load();
 // populate categories select
