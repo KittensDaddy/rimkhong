@@ -11,10 +11,8 @@ async function loadTables(){
   else if(t.status === 'order_pending') d.classList.add('table-pending');
   else if(t.status === 'paid') d.classList.add('table-paid');
     // make whole card clickable to show details
-  const thaiStatus = t.status === 'available' ? 'โต๊ะว่าง' : (t.status === 'order_pending' ? 'อาหารรอเสิร์ฟ' : (t.status === 'paid' ? 'เก็บเงินแล้ว' : t.status));
-  // show only table number in the card; keep name/status as hover title for context
-  d.innerHTML = `<div class="table-number">${t.id}</div>`;
-  d.title = `${t.name} — ${thaiStatus}`;
+    const thaiStatus = t.status === 'available' ? 'โต๊ะว่าง' : (t.status === 'order_pending' ? 'อาหารรอเสิร์ฟ' : (t.status === 'paid' ? 'เก็บเงินแล้ว' : t.status));
+    d.innerHTML = `<div>${t.name}</div><div>${thaiStatus}</div>`;
     d.addEventListener('click', ()=>showOrders(t.id));
     grid.appendChild(d);
   });
