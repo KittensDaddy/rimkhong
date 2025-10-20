@@ -172,3 +172,19 @@ ALTER TABLE tables ADD COLUMN IF NOT EXISTS last_sale_first_order_time TIMESTAMP
 ALTER TABLE tables ADD COLUMN IF NOT EXISTS last_sale_total NUMERIC(10,2);
 ALTER TABLE tables ADD COLUMN IF NOT EXISTS last_sale_payment_method TEXT;
 ALTER TABLE tables ADD COLUMN IF NOT EXISTS last_sale_paid_at TIMESTAMP WITH TIME ZONE;
+
+-- Bills table: each completed bill (one row per paid table event)
+CREATE TABLE IF NOT EXISTS bills (
+  id SERIAL PRIMARY KEY,
+  table_id INT REFERENCES tables(id) ON DELETE SET NULL,
+  orders JSONB,
+  total NUMERIC(10,2),
+  first_order_time TIMESTAMP WITH TIME ZONE,
+  last_order_time TIMESTAMP WITH TIME ZONE,
+  payment_method TEXT,
+  paid_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+-- Index on paid_at for faster reporting
+CREATE INDEX IF NOT EXISTS idx_bills_paid_at ON bills(paid_at);

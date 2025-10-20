@@ -145,6 +145,8 @@ app.post('/api/tables/:id/mark-paid', async (req,res)=>{
     // append single-element array (so sales_history remains an array of records)
     await pool.query("UPDATE tables SET sales_history = COALESCE(sales_history,'[]'::jsonb) || $1::jsonb, last_sale_orders = $2::jsonb, last_sale_first_order_time = $3, last_sale_total = $4, last_sale_payment_method = $5, last_sale_paid_at = $6 WHERE id=$7",
       [JSON.stringify([saleRecord]), JSON.stringify(ordersJsonArray), firstOrderTime, total, payment_method || null, paidAt, id]);
+    // insert into bills table for reporting
+    await pool.query('INSERT INTO bills(table_id, orders, total, first_order_time, last_order_time, payment_method, paid_at) VALUES($1,$2,$3,$4,$5,$6,$7)', [id, JSON.stringify(ordersJsonArray), total, firstOrderTime, orders[orders.length-1].created_at, payment_method || null, paidAt]);
     await pool.query("DELETE FROM orders WHERE table_id=$1", [id]);
     await pool.query("UPDATE tables SET status='paid' WHERE id=$1", [id]);
     await pool.query('COMMIT');
@@ -238,10 +240,7 @@ app.get('/api/reports/sales', async (req,res)=>{
     const t = to || fmt(today);
     const fromTs = f + ' 00:00:00';
     const toTs = t + ' 23:59:59';
-    const q = `SELECT (s->>'paid_at')::timestamptz as paid_at, (s->>'table_id')::int as table_id, s->>'payment_method' as payment_method, (s->>'total')::numeric as total, s->'orders' as orders
-      FROM tables, jsonb_array_elements(COALESCE(tables.sales_history,'[]'::jsonb)) as s
-      WHERE (s->>'paid_at') IS NOT NULL AND (s->>'paid_at')::timestamptz >= $1 AND (s->>'paid_at')::timestamptz <= $2
-      ORDER BY paid_at DESC`;
+    const q = `SELECT paid_at, table_id, payment_method, total, orders FROM bills WHERE paid_at >= $1 AND paid_at <= $2 ORDER BY paid_at DESC`;
     const r = await pool.query(q, [fromTs, toTs]);
     res.json(r.rows);
   }catch(err){ console.error(err); res.status(500).json({ error:'db_error' }); }
