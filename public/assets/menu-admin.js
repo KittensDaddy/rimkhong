@@ -30,8 +30,9 @@ function attachButtons(){
     document.getElementById('m-name').value = it.name;
     document.getElementById('m-price').value = it.price;
     document.getElementById('m-category').value = it.category;
-    document.getElementById('m-desc').value = it.description||'';
-    document.getElementById('m-available').checked = it.available === undefined ? true : !!it.available;
+  // description field removed from admin UI; keep DB value if needed but not editable here
+  document.getElementById('m-available').checked = it.available === undefined ? true : !!it.available;
+  updateThumb();
     title.textContent = 'Edit item ' + it.id;
   }));
   document.querySelectorAll('button.del').forEach(b=>b.addEventListener('click', async e=>{
@@ -45,7 +46,7 @@ function attachButtons(){
 form.addEventListener('submit', async e=>{
   e.preventDefault();
   const id = document.getElementById('m-id').value;
-  const body = { name: document.getElementById('m-name').value, price: Number(document.getElementById('m-price').value), category: document.getElementById('m-category').value, description: document.getElementById('m-desc').value, available: document.getElementById('m-available').checked };
+  const body = { name: document.getElementById('m-name').value, price: Number(document.getElementById('m-price').value), category: document.getElementById('m-category').value, available: document.getElementById('m-available').checked };
   if(id){
     const res = await apiPut('/menu/' + id, body);
     if(res.ok) { resetForm(); load(); } else alert('Update failed');
@@ -68,3 +69,9 @@ async function loadCategories(){
   cats.forEach(c=>{ const o = document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o); });
 }
 loadCategories();
+// availability thumb UI
+const availCheckbox = document.getElementById('m-available');
+const availThumb = document.getElementById('m-available-thumb');
+function updateThumb(){ if(!availCheckbox) return; if(availCheckbox.checked){ availCheckbox.style.background='#2ecc71'; availThumb.style.left='22px'; } else { availCheckbox.style.background='#ddd'; availThumb.style.left='2px'; } }
+if(availCheckbox) availCheckbox.addEventListener('change', updateThumb);
+updateThumb();

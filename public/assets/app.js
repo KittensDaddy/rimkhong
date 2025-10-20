@@ -32,8 +32,8 @@ function renderMenu(items){
   // hide mandatory opening set item from customer menu
   items.filter(it=>it.name !== 'ชุดเปิดเตา').forEach(it=>{
     const row = document.createElement('div'); row.className='menu-item';
-    row.innerHTML = `<div><strong>${it.name}</strong><div class="muted">${it.category} - ${it.description||''}</div></div><div><div>${Number(it.price).toFixed(2)}</div><button data-id="${it.id}">Add</button></div>`;
-    row.querySelector('button').addEventListener('click',()=>{ addToCart(it); });
+    row.innerHTML = `<div class="left"><div><strong>${it.name}</strong></div><div class="price">${Number(it.price).toFixed(2)}</div></div><div><button data-id="${it.id}">Add</button></div>`;
+    row.querySelector('button').addEventListener('click',()=>{ addToCart(it); renderOrdersPanel(); });
     el.appendChild(row);
   });
 }
@@ -45,10 +45,35 @@ function addToCart(item){
 }
 
 function renderCart(){
-  const el = document.getElementById('cart-items'); el.innerHTML='';
-  let total=0;
-  CART.items.forEach(it=>{ total += it.qty * it.price; const li=document.createElement('li'); li.textContent=`${it.name} x${it.qty} - ${ (it.qty*it.price).toFixed(2) }`; el.appendChild(li); });
-  document.getElementById('cart-total').textContent = total.toFixed(2);
+  // render cart into the orders panel placeholder
+  const ph = document.getElementById('cart-placeholder');
+  ph.innerHTML = '';
+  if(CART.items.length===0) return;
+  const h = document.createElement('div'); h.innerHTML = '<h4>Cart</h4>'; ph.appendChild(h);
+  const ul = document.createElement('ul'); let total=0;
+  CART.items.forEach(it=>{ total += it.qty * it.price; const li=document.createElement('li'); li.textContent=`${it.name} x${it.qty} - ${ (it.qty*it.price).toFixed(2) }`; ul.appendChild(li); });
+  ph.appendChild(ul);
+  const footer = document.createElement('div'); footer.className='cart-footer'; footer.innerHTML = `<div>Total: <strong>${total.toFixed(2)}</strong></div><button id="checkout-small">Checkout</button>`;
+  ph.appendChild(footer);
+  document.getElementById('checkout-small').addEventListener('click', checkout);
+}
+
+async function renderOrdersPanel(){
+  const ul = document.getElementById('placed-orders'); ul.innerHTML='';
+  // cart (if any) is rendered by renderCart into cart-placeholder
+  try{
+    const orders = await apiGet('/orders/' + CART.table);
+    (orders || []).forEach(o=>{
+      const li = document.createElement('li'); li.className='placed-order';
+      // items may be an array inside o.items
+      const items = Array.isArray(o.items) ? o.items : (o.items && JSON.parse(o.items)) || [];
+      const name = items.map(it=>`${it.name}${it.qty>1? ' x'+it.qty:''}`).join(', ');
+      const status = o.served ? 'served' : (o.status === 'paid' ? 'paid' : 'pending');
+      const statusClass = status==='served' ? 'status-served' : (status==='paid' ? 'status-paid' : 'status-pending');
+      li.innerHTML = `<div>${name}</div><div><span class="status ${statusClass}">${status}</span></div>`;
+      ul.appendChild(li);
+    });
+  }catch(e){ console.warn('Could not load placed orders', e); }
 }
 
 async function checkout(){
@@ -59,7 +84,8 @@ async function checkout(){
   if(res.ok){ CART.items=[]; renderCart(); alert('Order placed'); } else alert('Order failed');
 }
 
-document.getElementById('checkout').addEventListener('click', checkout);
+// main checkout button moved into orders panel; keep old button binding safe if present
+const oldCheckout = document.getElementById('checkout'); if(oldCheckout) oldCheckout.addEventListener('click', checkout);
 
 async function loadMenu(category){
   const items = await apiGet('/menu');
@@ -87,6 +113,7 @@ async function init(){
     }
   }catch(e){ console.warn('Could not check existing orders for mandatory set', e); }
   renderCart();
+  await renderOrdersPanel();
   document.getElementById('title').textContent = `Menu - Table ${CART.table}`;
   if(!CART.token){
     // indicate invalid access

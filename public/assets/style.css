@@ -3,14 +3,24 @@
 body{margin:0;padding:0;background:#f7f7f8;color:#111}
 .topbar{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#fff;border-bottom:1px solid #eee}
 .topbar nav a{margin-left:8px;color:var(--accent);text-decoration:none}
-.container{padding:12px}
+.container{padding:12px;display:grid;grid-template-columns:1fr 320px;gap:12px}
 .category-bar{display:flex;gap:8px;overflow:auto;padding-bottom:8px}
 .category-bar button{padding:8px 12px;border-radius:16px;border:1px solid #ddd;background:#fff}
 .menu-list{display:grid;grid-template-columns:1fr;gap:8px}
-.menu-item{display:flex;justify-content:space-between;padding:12px;background:#fff;border-radius:8px;border:1px solid #eee}
+.menu-item{display:flex;justify-content:space-between;align-items:center;padding:12px;background:#fff;border-radius:8px;border:1px solid #eee}
+.menu-item .left{display:flex;align-items:center;gap:12px;flex:1}
+.menu-item .meta{display:none}
+.menu-item .price{font-weight:600}
 .menu-item img{display:block;max-width:100%;height:auto;border-radius:6px}
 .menu-item button{margin-left:6px}
-.cart{position:fixed;right:12px;bottom:12px;width:280px;background:#fff;padding:12px;border-radius:12px;border:1px solid #eee;box-shadow:0 6px 20px rgba(0,0,0,.06)}
+.right-col{background:#fff;padding:12px;border-radius:8px;border:1px solid #eee}
+.right-col h3{margin-top:0}
+.placed-order{padding:8px;border-bottom:1px solid #f1f1f1;display:flex;justify-content:space-between}
+.placed-order .status{font-size:0.9em;padding:4px 8px;border-radius:8px}
+.status-pending{background:var(--warn)}
+.status-served{background:var(--ok);color:#fff}
+.status-paid{background:#111;color:#fff}
+.cart{display:none}
 .cart h3{margin:0 0 8px 0}
 .cart-footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
 .tables-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}

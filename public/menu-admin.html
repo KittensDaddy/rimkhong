@@ -29,8 +29,12 @@
       <label>Name <input id="m-name" type="text" required /></label>
         <label>Price <input id="m-price" type="number" step="0.01" required /></label>
         <label>Category <select id="m-category" required><option value="">(loading...)</option></select></label>
-        <label>Description <input id="m-desc" type="text" /></label>
-        <label><input type="checkbox" id="m-available" checked /> Available (show on customer page)</label>
+        <label style="display:flex;align-items:center;gap:8px"><strong>Available</strong>
+          <div style="position:relative">
+            <input type="checkbox" id="m-available" checked style="width:40px;height:20px;appearance:none;background:#ddd;border-radius:20px;position:relative;outline:none;cursor:pointer" />
+            <span style="position:absolute;left:2px;top:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:left .15s" id="m-available-thumb"></span>
+          </div>
+        </label>
       <button id="save">Save</button>
       <button id="cancel" type="button">Cancel</button>
     </form>
