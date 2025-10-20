@@ -122,5 +122,10 @@ async function showOrders(tableId){
 
 loadTables();
 
+// keep the table overview fresh: poll every 5 seconds
+setInterval(() => {
+  try{ loadTables(); }catch(e){ console.warn('loadTables poll failed', e); }
+}, 5000);
+
 // small helper to escape HTML
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
