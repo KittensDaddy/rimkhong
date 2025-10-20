@@ -4,7 +4,8 @@ CREATE TABLE IF NOT EXISTS menu (
   name TEXT NOT NULL,
   price NUMERIC(10,2) NOT NULL,
   category TEXT NOT NULL,
-  description TEXT
+  description TEXT,
+  available BOOLEAN DEFAULT TRUE
 );
 
 CREATE TABLE IF NOT EXISTS tables (
@@ -160,6 +161,9 @@ INSERT INTO menu(name,price,category,description)
 SELECT 'โซดา',15,'เครื่องดื่ม',NULL WHERE NOT EXISTS (SELECT 1 FROM menu WHERE name='โซดา');
 
 UPDATE tables SET access_token = md5(random()::text || clock_timestamp()::text) WHERE access_token IS NULL;
+
+-- ensure menu has available column for older DBs
+ALTER TABLE menu ADD COLUMN IF NOT EXISTS available BOOLEAN DEFAULT TRUE;
 
 -- ensure orders have served column for older DBs
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS served BOOLEAN DEFAULT FALSE;

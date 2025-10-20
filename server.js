@@ -26,7 +26,10 @@ app.use(express.static(path.join(__dirname, 'public')));
 // API endpoints
 app.get('/api/menu', async (req, res) => {
   try {
-    const r = await pool.query('SELECT * FROM menu ORDER BY category, id');
+    // admin may request all items with ?all=1, customers only get available items
+    const all = req.query.all === '1' || req.query.all === 'true';
+    const q = all ? 'SELECT * FROM menu ORDER BY category, id' : "SELECT * FROM menu WHERE COALESCE(available, true) = true ORDER BY category, id";
+    const r = await pool.query(q);
     res.json(r.rows);
   } catch (err) {
     console.error(err);
@@ -36,7 +39,10 @@ app.get('/api/menu', async (req, res) => {
 
 app.get('/api/menu/categories', async (req, res) => {
   try {
-    const r = await pool.query('SELECT DISTINCT category FROM menu ORDER BY category');
+    // categories for customer view should only include categories that have available items
+    const all = req.query.all === '1' || req.query.all === 'true';
+    const q = all ? 'SELECT DISTINCT category FROM menu ORDER BY category' : "SELECT DISTINCT category FROM menu WHERE COALESCE(available, true) = true ORDER BY category";
+    const r = await pool.query(q);
     res.json(r.rows.map(r=>r.category));
   } catch (err) {
     console.error(err);
@@ -293,18 +299,18 @@ app.put('/api/settings/tables', async (req, res) => {
 
 // Admin: add/edit menu
 app.post('/api/menu', async (req, res) => {
-  const { name, price, category, description } = req.body;
+  const { name, price, category, description, available } = req.body;
   try {
-    const r = await pool.query('INSERT INTO menu(name,price,category,description) VALUES($1,$2,$3,$4) RETURNING *', [name, price, category, description||null]);
+    const r = await pool.query('INSERT INTO menu(name,price,category,description,available) VALUES($1,$2,$3,$4,$5) RETURNING *', [name, price, category, description||null, available === undefined ? true : available]);
     res.json(r.rows[0]);
   } catch (err) { console.error(err); res.status(500).json({ error: 'db_error' }); }
 });
 
 app.put('/api/menu/:id', async (req, res) => {
   const id = parseInt(req.params.id,10);
-  const { name, price, category, description } = req.body;
+  const { name, price, category, description, available } = req.body;
   try {
-    const r = await pool.query('UPDATE menu SET name=$1, price=$2, category=$3, description=$4 WHERE id=$5 RETURNING *', [name, price, category, description||null, id]);
+    const r = await pool.query('UPDATE menu SET name=$1, price=$2, category=$3, description=$4, available=$5 WHERE id=$6 RETURNING *', [name, price, category, description||null, available === undefined ? true : available, id]);
     res.json(r.rows[0]);
   } catch (err) { console.error(err); res.status(500).json({ error: 'db_error' }); }
 });
