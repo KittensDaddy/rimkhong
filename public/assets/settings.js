@@ -23,6 +23,7 @@ document.getElementById('refresh-report').addEventListener('click', async ()=>{
 (async ()=>{ const resp = await fetch('/api/tables'); const t = await resp.json(); document.getElementById('table-count').value = t.length; })();
 
 // load admin-only table links and show QR/regenerate buttons
+let currentPreviewHolder = null; // track which preview is currently shown
 async function loadTableLinks(){
   try{
     const tables = await api('/admin/tables');
@@ -48,14 +49,25 @@ async function loadTableLinks(){
       row.appendChild(previewHolder);
 
       qrBtn.addEventListener('click', async ()=>{
-  const res = await fetch('/api/admin/tables/'+t.id+'/label');
-        if(res.ok){
-          const svgText = await res.text();
-          previewHolder.innerHTML = svgText;
-        } else {
-          const j = await res.json().catch(()=>null);
-          alert('Failed to load label: ' + (j?.error||res.status));
+        // if another preview is open, close it
+        if(currentPreviewHolder && currentPreviewHolder !== previewHolder){ currentPreviewHolder.innerHTML = ''; }
+        // toggle this preview
+        if(previewHolder.innerHTML && previewHolder.innerHTML.trim() !== ''){
+          previewHolder.innerHTML = '';
+          currentPreviewHolder = null;
+          return;
         }
+        try{
+          const res = await fetch('/api/admin/tables/'+t.id+'/label');
+          if(res.ok){
+            const svgText = await res.text();
+            previewHolder.innerHTML = svgText;
+            currentPreviewHolder = previewHolder;
+          } else {
+            const j = await res.json().catch(()=>null);
+            alert('Failed to load label: ' + (j?.error||res.status));
+          }
+        }catch(err){ console.error(err); alert('Failed to load label'); }
       });
 
       // copy link button handler (uses Clipboard API)
