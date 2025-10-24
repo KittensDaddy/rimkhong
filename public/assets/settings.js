@@ -4,12 +4,7 @@ async function api(path, opts){
   return res.json();
 }
 
-document.getElementById('menu-form').addEventListener('submit', async (e)=>{
-  e.preventDefault();
-  const payload = { name: document.getElementById('m-name').value, price: parseFloat(document.getElementById('m-price').value), category: document.getElementById('m-category').value, description: document.getElementById('m-desc').value };
-  const r = await api('/menu', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(payload) });
-  alert('Added: '+r.name);
-});
+// Menu creation handled in /menu-admin.html; removed inline add form from settings page
 
 document.getElementById('save-tables').addEventListener('click', async ()=>{
   const count = parseInt(document.getElementById('table-count').value,10);
@@ -36,12 +31,15 @@ async function loadTableLinks(){
     for(const t of tables){
       const row = document.createElement('div'); row.className='menu-item';
       const left = document.createElement('div');
-      left.innerHTML = `<strong>${t.name}</strong><div class="muted">${t.link}</div>`;
+      // show only name and a copy-link button (do not display full URL)
+      left.innerHTML = `<strong>${t.name}</strong>`;
+      const copyBtn = document.createElement('button'); copyBtn.textContent = 'คัดลอกลิ้ง'; copyBtn.style.marginLeft = '8px';
+      left.appendChild(copyBtn);
       const right = document.createElement('div');
-  const qrBtn = document.createElement('button'); qrBtn.textContent='แสดง QR';
-  const downloadBtn = document.createElement('button'); downloadBtn.textContent='ดาวน์โหลด PNG';
-  const regenBtn = document.createElement('button'); regenBtn.textContent='สร้างใหม่';
-  right.appendChild(qrBtn); right.appendChild(downloadBtn); right.appendChild(regenBtn);
+      const qrBtn = document.createElement('button'); qrBtn.textContent='แสดง QR';
+      const downloadBtn = document.createElement('button'); downloadBtn.textContent='ดาวน์โหลด PNG';
+      const regenBtn = document.createElement('button'); regenBtn.textContent='สร้างใหม่';
+      right.appendChild(qrBtn); right.appendChild(downloadBtn); right.appendChild(regenBtn);
       row.appendChild(left); row.appendChild(right);
       container.appendChild(row);
 
@@ -57,6 +55,19 @@ async function loadTableLinks(){
         } else {
           const j = await res.json().catch(()=>null);
           alert('Failed to load label: ' + (j?.error||res.status));
+        }
+      });
+
+      // copy link button handler (uses Clipboard API)
+      copyBtn.addEventListener('click', async ()=>{
+        try{
+          await navigator.clipboard.writeText(t.link);
+          const orig = copyBtn.textContent;
+          copyBtn.textContent = 'คัดลอกแล้ว';
+          setTimeout(()=> copyBtn.textContent = orig, 1500);
+        }catch(err){
+          // fallback: prompt
+          window.prompt('Copy this link', t.link);
         }
       });
 
