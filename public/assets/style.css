@@ -23,9 +23,10 @@ body{margin:0;padding:0;background:#f7f7f8;color:#111}
 .status-pending{background:var(--warn)}
 .status-served{background:var(--ok);color:#fff}
 .status-paid{background:#111;color:#fff}
-.cart{display:none}
+.cart{display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:16px;width:min(420px,95%);background:#fff;padding:12px;border-radius:10px;border:1px solid #eee;box-shadow:0 6px 18px rgba(0,0,0,0.08);z-index:1200}
 .cart h3{margin:0 0 8px 0}
-.cart-footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+.cart-footer{display:flex;justify-content:center;align-items:center;gap:12px;margin-top:12px}
+.cart-footer button{padding:12px 20px;font-size:16px;border-radius:8px}
 .tables-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .table-card{padding:12px;border-radius:8px;text-align:center;color:#fff;min-height:80px;display:flex;align-items:center;justify-content:center}
 .table-available{background:#ffffff;color:#111;border:1px solid #ddd}

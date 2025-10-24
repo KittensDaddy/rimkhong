@@ -5,12 +5,9 @@ async function apiGet(path){
   return res.json();
 }
 
-// Expect path like /table/<id>/<token> (we will support root fallback but discourage it)
 function parsePath(){
   const parts = location.pathname.split('/').filter(Boolean);
-  // if path is /table/3/abcdef
   if(parts[0]==='table' && parts[1]) return { table: parseInt(parts[1],10), token: parts[2] };
-  // fallback to ?table=1 (legacy) but token will be null — will be rejected by server
   const p = new URLSearchParams(location.search);
   return { table: parseInt(p.get('table')||'1',10), token: p.get('token') || null };
 }
@@ -23,22 +20,19 @@ function markCategorySelected(){ document.querySelectorAll('#categories button')
 function renderCategories(categories){
   const el = document.getElementById('categories');
   el.innerHTML = '';
-  // hide the special required set category from customer view
   const hiddenCategory = 'ชุดเปิดเตา (บังคับเลือก)';
   categories.filter(c=>c!==hiddenCategory).forEach(c=>{
     const b=document.createElement('button'); b.textContent=c; b.onclick=()=>{ CURRENT_CATEGORY=c; markCategorySelected(); loadMenu(c); }; el.appendChild(b);
   });
-  // ensure selected style is set
   markCategorySelected();
 }
 
 function renderMenu(items){
   const el = document.getElementById('menu-list');
   el.innerHTML = '';
-  // hide mandatory opening set item from customer menu
   items.filter(it=>it.name !== 'ชุดเปิดเตา').forEach(it=>{
     const row = document.createElement('div'); row.className='menu-item';
-    row.innerHTML = `<div class="left"><div><strong>${it.name}</strong></div><div class="price">${Number(it.price).toFixed(2)}</div></div><div><button data-id="${it.id}">เพิ่ม</button></div>`;
+    row.innerHTML = `<div class="left"><div><strong>${it.name}</strong></div><div class="price">${Number(it.price).toFixed(2)}</div></div><div><button data-id="${it.id}">Add</button></div>`;
     row.querySelector('button').addEventListener('click',()=>{ addToCart(it); renderOrdersPanel(); });
     el.appendChild(row);
   });
@@ -51,44 +45,24 @@ function addToCart(item){
 }
 
 function renderCart(){
-  // render cart into the orders panel placeholder
   const ph = document.getElementById('cart-placeholder');
   ph.innerHTML = '';
-  // also update the floating cart aside so its content (Thai labels) is visible
-  const cartAside = document.getElementById('cart');
-  const cartItemsEl = document.getElementById('cart-items');
-  const cartTotalEl = document.getElementById('cart-total');
-  if(CART.items.length===0){
-    // clear placeholder and hide aside
-    if(cartItemsEl) cartItemsEl.innerHTML = '';
-    if(cartTotalEl) cartTotalEl.textContent = '0.00';
-    if(cartAside) cartAside.style.display = 'none';
-    return;
-  }
-  if(cartAside) cartAside.style.display = 'block';
+  if(CART.items.length===0) return;
   const h = document.createElement('div'); h.innerHTML = '<h4>Cart</h4>'; ph.appendChild(h);
   const ul = document.createElement('ul'); let total=0;
   CART.items.forEach(it=>{ total += it.qty * it.price; const li=document.createElement('li'); li.textContent=`${it.name} x${it.qty} - ${ (it.qty*it.price).toFixed(2) }`; ul.appendChild(li); });
   ph.appendChild(ul);
-  const footer = document.createElement('div'); footer.className='cart-footer'; footer.innerHTML = `<div>Total: <strong>${total.toFixed(2)}</strong></div><button id="checkout-small">Checkout</button>`;
+  const footer = document.createElement('div'); footer.className='cart-footer'; footer.innerHTML = `<div>Total: <strong>${total.toFixed(2)}</strong></div><button id="checkout-small">ส่งรายการ</button>`;
   ph.appendChild(footer);
   document.getElementById('checkout-small').addEventListener('click', checkout);
-  // also populate the aside cart (visible on wider screens)
-  if(cartItemsEl){
-    cartItemsEl.innerHTML = '';
-    CART.items.forEach(it=>{ const li = document.createElement('li'); li.textContent = `${it.name} x${it.qty} - ${(it.qty*it.price).toFixed(2)}`; cartItemsEl.appendChild(li); });
-  }
-  if(cartTotalEl) cartTotalEl.textContent = total.toFixed(2);
 }
 
 async function renderOrdersPanel(){
   const ul = document.getElementById('placed-orders'); ul.innerHTML='';
-  // cart (if any) is rendered by renderCart into cart-placeholder
   try{
     const orders = await apiGet('/orders/' + CART.table);
     (orders || []).forEach(o=>{
       const li = document.createElement('li'); li.className='placed-order';
-      // items may be an array inside o.items
       const items = Array.isArray(o.items) ? o.items : (o.items && JSON.parse(o.items)) || [];
       const name = items.map(it=>`${it.name}${it.qty>1? ' x'+it.qty:''}`).join(', ');
       const status = o.served ? 'served' : (o.status === 'paid' ? 'paid' : 'pending');
@@ -104,10 +78,9 @@ async function checkout(){
   if(!CART.token) return alert('Invalid table link. Please use the QR code on your table.');
   const payload = { table_id: CART.table, items: CART.items, total: CART.items.reduce((s,i)=>s+i.qty*i.price,0), payment_method: 'cash', token: CART.token };
   const res = await fetch('/api/orders', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(payload) });
-  if(res.ok){ CART.items=[]; renderCart(); alert('Order placed'); } else alert('Order failed');
+  if(res.ok){ CART.items=[]; renderCart(); alert('ส่งรายการเรียบร้อย'); } else alert('ส่งรายการล้มเหลว');
 }
 
-// main checkout button moved into orders panel; keep old button binding safe if present
 const oldCheckout = document.getElementById('checkout'); if(oldCheckout) oldCheckout.addEventListener('click', checkout);
 
 async function loadMenu(category){
@@ -118,15 +91,14 @@ async function loadMenu(category){
 async function init(){
   const cats = await apiGet('/menu/categories');
   renderCategories(cats);
-  // default to 'อาหารสด (25 บาท)' category for customers
+
   const defaultCat = 'อาหารสด (25 บาท)';
   const hasDefault = (cats || []).includes(defaultCat);
   if(hasDefault){ CURRENT_CATEGORY = defaultCat; markCategorySelected(); await loadMenu(defaultCat); } else { await loadMenu(); }
-  // If this table has no unpaid orders, force-add the mandatory opening set (ชุดเปิดเตา) once
+
   try{
     const existing = await apiGet('/orders/' + CART.table);
     if((existing || []).length === 0){
-      // find the mandatory item from the full menu
       const all = await apiGet('/menu');
       const mandatory = (all || []).find(it => it.name === 'ชุดเปิดเตา');
       if(mandatory){
@@ -139,7 +111,6 @@ async function init(){
   await renderOrdersPanel();
   document.getElementById('title').textContent = `Menu - Table ${CART.table}`;
   if(!CART.token){
-    // indicate invalid access (Thai message)
     const warn = document.createElement('div'); warn.style.color='red'; warn.textContent = 'กรุณาแสกน QR Code ที่โต๊ะเพื่อสั่งอาหาร';
     document.querySelector('.container').prepend(warn);
   }
