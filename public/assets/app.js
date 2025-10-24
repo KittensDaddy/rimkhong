@@ -117,3 +117,14 @@ async function init(){
 }
 
 init();
+
+// real-time updates via socket.io: join table room and refresh when orders change
+try{
+  const socket = io();
+  socket.on('connect', ()=>{ socket.emit('joinTable', PATH.table); });
+  socket.on('orders:created', (data)=>{ if(data && data.table_id === CART.table){ renderOrdersPanel(); } });
+  socket.on('orders:updated', (data)=>{ if(data && data.order && data.order.table_id === CART.table){ renderOrdersPanel(); } });
+  socket.on('orders:cleared', (data)=>{ if(data && data.table_id === CART.table){ renderOrdersPanel(); renderCart(); } });
+  socket.on('table:paid', (data)=>{ if(data && data.table_id === CART.table){ renderOrdersPanel(); renderCart(); } });
+  socket.on('table:cleaned', (data)=>{ if(data && data.table_id === CART.table){ renderOrdersPanel(); } });
+}catch(e){ console.warn('Socket.io not available', e); }

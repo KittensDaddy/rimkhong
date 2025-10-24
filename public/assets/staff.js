@@ -18,7 +18,9 @@ async function loadTables(){
   });
 }
 
+let CURRENT_OPEN_TABLE = null;
 async function showOrders(tableId){
+  CURRENT_OPEN_TABLE = tableId;
   const orders = await api(`/tables/${tableId}/orders`);
   const panel = document.getElementById('orders-panel'); panel.innerHTML='';
   const title = document.createElement('h3'); title.textContent = `รายการสั่งของโต๊ะ ${tableId}`; panel.appendChild(title);
@@ -121,6 +123,17 @@ async function showOrders(tableId){
 }
 
 loadTables();
+
+// real-time socket: staff listens for table/order changes
+try{
+  const socket = io();
+  socket.on('connect', ()=>{ socket.emit('joinStaff'); });
+  socket.on('tables:update', (data)=>{ /* refresh table overview */ loadTables(); });
+  socket.on('orders:created', (data)=>{ if(data && data.table_id){ loadTables(); if(CURRENT_OPEN_TABLE === data.table_id) showOrders(CURRENT_OPEN_TABLE); } });
+  socket.on('orders:updated', (data)=>{ if(data && data.order && data.order.table_id){ loadTables(); if(CURRENT_OPEN_TABLE === data.order.table_id) showOrders(CURRENT_OPEN_TABLE); } });
+  socket.on('orders:cleared', (data)=>{ if(data && data.table_id){ loadTables(); if(CURRENT_OPEN_TABLE === data.table_id) showOrders(CURRENT_OPEN_TABLE); } });
+  socket.on('table:paid', (data)=>{ if(data && data.table_id){ loadTables(); if(CURRENT_OPEN_TABLE === data.table_id) showOrders(CURRENT_OPEN_TABLE); } });
+}catch(e){ console.warn('Socket.io not available', e); }
 
 // keep the table overview fresh: poll every 5 seconds
 setInterval(() => {

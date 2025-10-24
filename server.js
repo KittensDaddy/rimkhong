@@ -3,6 +3,8 @@ const path = require('path');
 const cors = require('cors');
 const { Pool } = require('pg');
 const QRCode = require('qrcode');
+const http = require('http');
+const { Server } = require('socket.io');
 
 const app = express();
 app.use(cors());
@@ -10,6 +12,17 @@ app.use(express.json());
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/restaurant'
+});
+
+// create http server and attach socket.io
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: '*' } });
+
+io.on('connection', (socket) => {
+  // clients may join rooms: 'table:<id>' or 'staff'
+  socket.on('joinTable', (id) => { try{ socket.join(`table:${id}`); }catch(e){} });
+  socket.on('leaveTable', (id) => { try{ socket.leave(`table:${id}`); }catch(e){} });
+  socket.on('joinStaff', ()=>{ socket.join('staff'); });
 });
 
 // Note: admin routes intentionally unprotected for this small local deployment.
@@ -91,6 +104,9 @@ app.post('/api/orders', async (req, res) => {
     }
     // mark table as having pending orders
     await pool.query("UPDATE tables SET status='order_pending' WHERE id=$1", [table_id]);
+    // notify websocket clients: the specific table and staff overview
+    try{ io.to(`table:${table_id}`).emit('orders:created', { table_id, created, count: created.length }); }catch(e){}
+    try{ io.to('staff').emit('tables:update', { table_id, status: 'order_pending' }); }catch(e){}
     res.json({ created, count: created.length });
   } catch (err) { console.error(err); res.status(500).json({ error: 'db_error' }); }
 });
@@ -117,6 +133,9 @@ app.post('/api/orders/:id/serve', async (req,res)=>{
       // all current orders served
       await pool.query("UPDATE tables SET status='served' WHERE id=$1", [updated.table_id]);
     }
+    // emit websocket update for this table and staff overview
+    try{ io.to(`table:${updated.table_id}`).emit('orders:updated', { order: updated }); }catch(e){}
+    try{ io.to('staff').emit('tables:update', { table_id: updated.table_id, status: chk.rows[0].c === 0 ? 'served' : 'order_pending' }); }catch(e){}
     res.json(updated);
   }catch(err){ console.error(err); res.status(500).json({ error:'db_error' }); }
 });
@@ -156,6 +175,11 @@ app.post('/api/tables/:id/mark-paid', async (req,res)=>{
     await pool.query("DELETE FROM orders WHERE table_id=$1", [id]);
     await pool.query("UPDATE tables SET status='paid' WHERE id=$1", [id]);
     await pool.query('COMMIT');
+    // websocket notifications: table and staff
+    try{ io.to(`table:${id}`).emit('table:paid', { table_id: id, total, paid_at: paidAt }); }catch(e){}
+    try{ io.to('staff').emit('tables:update', { table_id: id, status: 'paid' }); }catch(e){}
+    // also notify that orders cleared
+    try{ io.to(`table:${id}`).emit('orders:cleared', { table_id: id }); }catch(e){}
     res.json({ count: orders.length });
   }catch(err){ console.error(err); res.status(500).json({ error:'db_error' }); }
 });
@@ -166,6 +190,8 @@ app.post('/api/tables/:id/clean', async (req,res)=>{
   try{
     await pool.query("UPDATE tables SET status='available' WHERE id=$1", [id]);
     const r = await pool.query('SELECT id,name,status FROM tables WHERE id=$1', [id]);
+    try{ io.to('staff').emit('tables:update', { table_id: id, status: 'available' }); }catch(e){}
+    try{ io.to(`table:${id}`).emit('table:cleaned', { table_id: id }); }catch(e){}
     res.json(r.rows[0]);
   }catch(err){ console.error(err); res.status(500).json({ error:'db_error' }); }
 });
@@ -310,7 +336,12 @@ app.put('/api/orders/:id', async (req, res) => {
   try {
     const r = await pool.query('UPDATE orders SET status=$1, payment_method=$2, paid_at=CASE WHEN $1=$3 THEN now() ELSE paid_at END WHERE id=$4 RETURNING *',
       [status || 'pending', payment_method || null, 'paid', id]);
-    res.json(r.rows[0]);
+    const updated = r.rows[0];
+    if(updated){
+      try{ io.to(`table:${updated.table_id}`).emit('orders:updated', { order: updated }); }catch(e){}
+      try{ io.to('staff').emit('tables:update', { table_id: updated.table_id }); }catch(e){}
+    }
+    res.json(updated);
   } catch (err) { console.error(err); res.status(500).json({ error: 'db_error' }); }
 });
 
@@ -364,4 +395,4 @@ app.delete('/api/menu/:id', async (req, res) => {
 // legacy sales-report removed; use the sales_history-backed /api/reports/sales defined earlier
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server listening on ${PORT}`));
+server.listen(PORT, () => console.log(`Server listening on ${PORT}`));
