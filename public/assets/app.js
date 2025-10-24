@@ -38,7 +38,7 @@ function renderMenu(items){
   // hide mandatory opening set item from customer menu
   items.filter(it=>it.name !== 'ชุดเปิดเตา').forEach(it=>{
     const row = document.createElement('div'); row.className='menu-item';
-    row.innerHTML = `<div class="left"><div><strong>${it.name}</strong></div><div class="price">${Number(it.price).toFixed(2)}</div></div><div><button data-id="${it.id}">Add</button></div>`;
+    row.innerHTML = `<div class="left"><div><strong>${it.name}</strong></div><div class="price">${Number(it.price).toFixed(2)}</div></div><div><button data-id="${it.id}">เพิ่ม</button></div>`;
     row.querySelector('button').addEventListener('click',()=>{ addToCart(it); renderOrdersPanel(); });
     el.appendChild(row);
   });
@@ -54,7 +54,18 @@ function renderCart(){
   // render cart into the orders panel placeholder
   const ph = document.getElementById('cart-placeholder');
   ph.innerHTML = '';
-  if(CART.items.length===0) return;
+  // also update the floating cart aside so its content (Thai labels) is visible
+  const cartAside = document.getElementById('cart');
+  const cartItemsEl = document.getElementById('cart-items');
+  const cartTotalEl = document.getElementById('cart-total');
+  if(CART.items.length===0){
+    // clear placeholder and hide aside
+    if(cartItemsEl) cartItemsEl.innerHTML = '';
+    if(cartTotalEl) cartTotalEl.textContent = '0.00';
+    if(cartAside) cartAside.style.display = 'none';
+    return;
+  }
+  if(cartAside) cartAside.style.display = 'block';
   const h = document.createElement('div'); h.innerHTML = '<h4>Cart</h4>'; ph.appendChild(h);
   const ul = document.createElement('ul'); let total=0;
   CART.items.forEach(it=>{ total += it.qty * it.price; const li=document.createElement('li'); li.textContent=`${it.name} x${it.qty} - ${ (it.qty*it.price).toFixed(2) }`; ul.appendChild(li); });
@@ -62,6 +73,12 @@ function renderCart(){
   const footer = document.createElement('div'); footer.className='cart-footer'; footer.innerHTML = `<div>Total: <strong>${total.toFixed(2)}</strong></div><button id="checkout-small">Checkout</button>`;
   ph.appendChild(footer);
   document.getElementById('checkout-small').addEventListener('click', checkout);
+  // also populate the aside cart (visible on wider screens)
+  if(cartItemsEl){
+    cartItemsEl.innerHTML = '';
+    CART.items.forEach(it=>{ const li = document.createElement('li'); li.textContent = `${it.name} x${it.qty} - ${(it.qty*it.price).toFixed(2)}`; cartItemsEl.appendChild(li); });
+  }
+  if(cartTotalEl) cartTotalEl.textContent = total.toFixed(2);
 }
 
 async function renderOrdersPanel(){
