@@ -2,6 +2,43 @@
 <html lang="th">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>รายงานการขาย</title>
+  <link rel="stylesheet" href="/assets/style.css">
+  <style>
+    .report-controls{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+    .report-table{width:100%;border-collapse:collapse}
+    .report-table th,.report-table td{border:1px solid #ddd;padding:8px;text-align:left}
+    .muted{color:#666}
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <h1>รายงานการขาย</h1>
+    <nav><a href="/plek">กลับ</a> <a href="/settings.html">ตั้งค่า</a></nav>
+  </header>
+  <main class="container">
+    <section style="width:100%">
+      <div class="report-controls">
+        <label>จาก <input type="date" id="from-date"></label>
+        <label>ถึง <input type="date" id="to-date"></label>
+        <button id="refresh">ค้นหา</button>
+      </div>
+      <div id="report-wrap">
+        <table class="report-table" id="report-table">
+          <thead><tr><th>เวลา</th><th>โต๊ะ</th><th>วิธีชำระ</th><th>ยอดรวม</th><th>รายการ</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+  <script src="/assets/plek-sales.js"></script>
+</body>
+</html>
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>รายงานการขาย</title>
   <link rel="stylesheet" href="/assets/style.css">
