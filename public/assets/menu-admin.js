@@ -8,9 +8,11 @@ async function apiDelete(path){ return fetch(API+path, { method:'DELETE' }); }
 const tableBody = document.querySelector('#menu-table tbody');
 const form = document.getElementById('menu-form');
 const title = document.getElementById('form-title');
+let menuItems = [];
 
 async function load(){
   const items = await apiGet('/menu?all=1');
+  menuItems = items;
   tableBody.innerHTML = '';
   items.forEach(it=>{
     const tr = document.createElement('tr');
@@ -34,18 +36,62 @@ async function load(){
 
 function attachButtons(){
   document.querySelectorAll('button.edit').forEach(b=>b.addEventListener('click', async e=>{
-    const id = e.target.dataset.id;
-    const items = await apiGet('/menu?all=1');
-    const it = items.find(x=>String(x.id)===String(id));
-    if(!it) return alert('Item not found');
-    document.getElementById('m-id').value = it.id;
-    document.getElementById('m-name').value = it.name;
-    document.getElementById('m-price').value = it.price;
-    document.getElementById('m-category').value = it.category;
-  // description field removed from admin UI; keep DB value if needed but not editable here
-  document.getElementById('m-available').checked = it.available === undefined ? true : !!it.available;
-  updateThumb();
-    title.textContent = 'Edit item ' + it.id;
+    const btn = e.target;
+    const id = btn.dataset.id;
+    const tr = btn.closest('tr');
+    // prevent multiple rows editing
+    const editing = document.querySelector('tr[data-editing="1"]');
+    if(editing && editing !== tr){ return alert('Please finish editing the other row first'); }
+    // toggle between Edit and Save
+    if(btn.textContent.trim().toLowerCase() === 'edit'){
+      // enter edit mode
+      const it = menuItems.find(x=>String(x.id)===String(id));
+      if(!it) return alert('Item not found');
+      tr.dataset.orig = tr.innerHTML;
+      tr.dataset.editing = '1';
+      // cells: 0=id,1=name,2=price,3=category,4=avail,5=desc,6=actions
+      const nameTd = tr.children[1];
+      const priceTd = tr.children[2];
+      const catTd = tr.children[3];
+      const availTd = tr.children[4];
+      const descTd = tr.children[5];
+      const actionsTd = tr.children[6];
+      // create inputs
+      nameTd.innerHTML = `<input type="text" value="${escapeHtml(it.name)}" style="width:100%" />`;
+      priceTd.innerHTML = `<input type="number" step="0.01" value="${Number(it.price).toFixed(2)}" style="width:100%" />`;
+      // category select: clone options from main form select
+      const catSelect = document.createElement('select');
+      const mainCat = document.getElementById('m-category');
+      if(mainCat){ Array.from(mainCat.options).forEach(o=>{ const opt = document.createElement('option'); opt.value=o.value; opt.textContent=o.textContent; if(o.value===it.category) opt.selected=true; catSelect.appendChild(opt); }); }
+      else { catSelect.innerHTML = `<option>${escapeHtml(it.category)}</option>`; }
+      catSelect.style.width = '100%'; catTd.innerHTML = ''; catTd.appendChild(catSelect);
+      // available checkbox
+      const chk = document.createElement('input'); chk.type='checkbox'; chk.checked = it.available === undefined ? true : !!it.available;
+      availTd.innerHTML = ''; availTd.appendChild(chk);
+      // description editable
+      descTd.innerHTML = `<input type="text" value="${escapeHtml(it.description||'')}" style="width:100%" />`;
+      // change action buttons
+      actionsTd.innerHTML = `<button data-id="${it.id}" class="save">Save</button> <button data-id="${it.id}" class="cancel">Cancel</button>`;
+      // attach save/cancel handlers
+      actionsTd.querySelector('button.save').addEventListener('click', async ev=>{
+        const newName = nameTd.querySelector('input').value;
+        const newPrice = parseFloat(priceTd.querySelector('input').value);
+        const newCat = catTd.querySelector('select').value;
+        const newAvail = availTd.querySelector('input').checked;
+        const newDesc = descTd.querySelector('input').value;
+        const body = { name: newName, price: newPrice, category: newCat, description: newDesc, available: newAvail };
+        const res = await apiPut('/menu/' + it.id, body);
+        if(res.ok){ tr.removeAttribute('data-editing'); load(); } else { alert('Update failed'); }
+      });
+      actionsTd.querySelector('button.cancel').addEventListener('click', ev=>{
+        // revert
+        tr.innerHTML = tr.dataset.orig;
+        tr.removeAttribute('data-editing');
+        attachButtons();
+      });
+    } else {
+      // if button isn't 'Edit' it may be Save triggered elsewhere; ignore
+    }
   }));
   document.querySelectorAll('button.del').forEach(b=>b.addEventListener('click', async e=>{
     if(!confirm('Delete this menu item?')) return;
@@ -87,3 +133,5 @@ const availThumb = document.getElementById('m-available-thumb');
 function updateThumb(){ if(!availCheckbox) return; if(availCheckbox.checked){ availCheckbox.style.background='#2ecc71'; availThumb.style.left='22px'; } else { availCheckbox.style.background='#ddd'; availThumb.style.left='2px'; } }
 if(availCheckbox) availCheckbox.addEventListener('change', updateThumb);
 updateThumb();
+
+function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
