@@ -35,15 +35,6 @@ BEGIN
   END IF;
 END$$;
 
--- sample menu
-INSERT INTO menu(name,price,category,description)
-SELECT 'Margherita', 8.50, 'Pizza', 'Classic cheese and tomato' WHERE NOT EXISTS (SELECT 1 FROM menu WHERE name='Margherita');
-INSERT INTO menu(name,price,category,description)
-SELECT 'Coke', 1.50, 'Drink', 'Can of coke' WHERE NOT EXISTS (SELECT 1 FROM menu WHERE name='Coke');
-
--- If the tables table existed from an earlier version without access_token, add the column
--- populate tokens for rows missing them
-
 -- Seed Thai menu (idempotent)
 -- ชุดเปิดเตา (mandatory opening set)
 INSERT INTO menu(name,price,category,description)
