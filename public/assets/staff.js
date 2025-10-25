@@ -1,5 +1,27 @@
 const api = path=>fetch('/api'+path).then(r=>r.json());
 
+// lightweight toast utility (non-blocking)
+function showToast(msg, timeout = 2500){
+  try{
+    let container = document.getElementById('toast-container');
+    if(!container){ container = document.createElement('div'); container.id = 'toast-container'; container.style.position = 'fixed'; container.style.bottom = '20px'; container.style.right = '20px'; container.style.zIndex = '9999'; document.body.appendChild(container); }
+    const t = document.createElement('div');
+    t.className = 'toast-msg';
+    t.textContent = msg;
+    t.style.background = 'rgba(0,0,0,0.8)';
+    t.style.color = 'white';
+    t.style.padding = '8px 12px';
+    t.style.borderRadius = '6px';
+    t.style.marginTop = '8px';
+    t.style.opacity = '0';
+    t.style.transition = 'opacity 200ms ease';
+    container.appendChild(t);
+    void t.offsetWidth;
+    t.style.opacity = '1';
+    setTimeout(()=>{ t.style.opacity = '0'; setTimeout(()=>{ t.remove(); if(container.children.length===0) container.remove(); }, 250); }, timeout);
+  }catch(e){ console.warn('Could not show toast', e); }
+}
+
 async function loadTables(){
   const tables = await api('/tables');
   const grid = document.getElementById('tables-grid'); grid.innerHTML='';
@@ -78,8 +100,8 @@ async function showOrders(tableId){
       box.querySelector('#cancel-cash').addEventListener('click', ()=> modal.remove());
       box.querySelector('#confirm-cash').addEventListener('click', async ()=>{
         const res = await fetch('/api/tables/'+tableId+'/mark-paid', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ payment_method: 'cash' }) });
-        const j = await res.json();
-        alert('ทำการบันทึกการชำระสำหรับ '+ (j.count||0) +' รายการ');
+  const j = await res.json();
+  showToast('ทำการบันทึกการชำระสำหรับ '+ (j.count||0) +' รายการ', 2600);
         modal.remove(); await loadTables(); panel.innerHTML='';
       });
     });
@@ -97,8 +119,8 @@ async function showOrders(tableId){
       box.querySelector('#cancel-qr').addEventListener('click', ()=> modal.remove());
       box.querySelector('#confirm-qr').addEventListener('click', async ()=>{
         const res = await fetch('/api/tables/'+tableId+'/mark-paid', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ payment_method: 'qr' }) });
-        const j = await res.json();
-        alert('ทำการบันทึกการชำระสำหรับ '+ (j.count||0) +' รายการ');
+  const j = await res.json();
+  showToast('ทำการบันทึกการชำระสำหรับ '+ (j.count||0) +' รายการ', 2600);
         modal.remove(); await loadTables(); panel.innerHTML='';
       });
     });
@@ -112,10 +134,10 @@ async function showOrders(tableId){
   if(cur && cur.status === 'paid'){
     cleanBtn.addEventListener('click', async ()=>{
       const r = await fetch('/api/tables/'+tableId+'/clean', { method: 'POST' });
-      const j = await r.json();
-      alert('โต๊ะถูกเก็บเรียบร้อย');
-      await loadTables();
-      panel.innerHTML = '';
+  const j = await r.json();
+  showToast('โต๊ะถูกเก็บเรียบร้อย', 2200);
+  await loadTables();
+  panel.innerHTML = '';
     });
     paidWrap.appendChild(cleanBtn);
   }

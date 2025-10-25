@@ -25,16 +25,27 @@ async function loadSales(){
   }
   (rows || []).forEach(r=>{
     const tr = document.createElement('tr');
-    // orders may be an array of order objects; show item names and quantities
+    // orders may be an array of order objects; aggregate identical menu items across all orders
     let ordersText = '';
     try{
       const orders = r.orders || [];
-      const parts = (orders || []).map(o=>{
+      // aggregate items by id or name
+      const agg = {};
+      (orders || []).forEach(o=>{
         const items = o.items || [];
-        const names = (items || []).map(i=> (i.name || i.item || '') + (i.qty? ' x'+i.qty : '') ).join(', ');
-        return names || JSON.stringify(o);
+        (items || []).forEach(i=>{
+          const key = (i.id != null ? String(i.id) : (i.name || i.item || '')).trim();
+          if(!key) return;
+          if(!agg[key]) agg[key] = { name: i.name || i.item || key, qty: 0 };
+          agg[key].qty += Number(i.qty || 1);
+        });
       });
-      ordersText = parts.join(' | ');
+      const parts = Object.values(agg).map(a=> `${a.name} x${a.qty}`);
+      ordersText = parts.join(', ');
+      if(!ordersText){
+        // fallback: show raw orders if aggregation produced nothing
+        ordersText = (orders || []).map(o=> JSON.stringify(o)).join(' | ');
+      }
     }catch(e){ ordersText = '' }
     tr.innerHTML = `<td>${fmtDateTime(r.paid_at)}</td><td>${r.table_id}</td><td>${r.payment_method || ''}</td><td>${Number(r.total || 0).toFixed(2)}</td><td>${escapeHtml(ordersText)}</td>`;
     tbody.appendChild(tr);

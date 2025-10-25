@@ -59,15 +59,29 @@ function renderMenu(items){
     // simple Add button only (quantity selection removed per request)
     row.innerHTML = `<div class="left"><div><strong>${it.name}</strong></div><div class="price">${Number(it.price).toFixed(2)}</div></div><div class="menu-actions"><button class="menu-add" data-id="${it.id}">Add</button></div>`;
     const addBtn = row.querySelector('.menu-add');
-    addBtn.addEventListener('click',()=>{ addToCart(it, 1); renderOrdersPanel(); });
+    addBtn.addEventListener('click',()=>{
+      // prevent adding the mandatory set more than once
+      if((it.name||'').trim() === 'ชุดเปิดเตา'){
+        showToast('ชุดเปิดเตา ต้องสั่งเพียง 1 ชุดเท่านั้น', 2000);
+        return;
+      }
+      addToCart(it, 1);
+      renderOrdersPanel();
+    });
     el.appendChild(row);
   });
 }
 
-function addToCart(item, qty = 1){
+function addToCart(item, qty = 1, locked = false){
   qty = Number(qty) || 1;
   const existing = CART.items.find(i=>i.id===item.id);
-  if(existing) existing.qty = Number(existing.qty || 0) + qty; else CART.items.push({ id:item.id, name:item.name, price:Number(item.price), qty: qty });
+  if(existing){
+    // if this item is locked (mandatory single-item), don't change quantity
+    if(existing.locked){ showToast('รายการนี้ต้องสั่งครั้งเดียวเท่านั้น', 2000); return; }
+    existing.qty = Number(existing.qty || 0) + qty;
+  } else {
+    CART.items.push({ id:item.id, name:item.name, price:Number(item.price), qty: qty, locked: !!locked });
+  }
   renderCart();
 }
 
@@ -83,7 +97,12 @@ function renderCart(){
     // add spacing/padding to make buttons easier to click
     li.style.marginBottom = '8px';
     li.style.padding = '6px 0';
-    li.innerHTML = `<span class="cart-name">${it.name}</span> <span class="cart-controls"><button class="cart-minus" data-id="${it.id}">-</button> <span class="cart-qty">${it.qty}</span> <button class="cart-plus" data-id="${it.id}">+</button></span> <span class="cart-price">- ${ (it.qty*it.price).toFixed(2) }</span>`;
+    if(it.locked){
+      // locked mandatory item: show fixed qty (1) and no +/- controls
+      li.innerHTML = `<span class="cart-name">${it.name}</span> <span class="cart-qty">1</span> <span class="cart-price">- ${ (it.qty*it.price).toFixed(2) }</span>`;
+    } else {
+      li.innerHTML = `<span class="cart-name">${it.name}</span> <span class="cart-controls"><button class="cart-minus" data-id="${it.id}">-</button> <span class="cart-qty">${it.qty}</span> <button class="cart-plus" data-id="${it.id}">+</button></span> <span class="cart-price">- ${ (it.qty*it.price).toFixed(2) }</span>`;
+    }
     ul.appendChild(li);
   });
   ph.appendChild(ul);
@@ -96,14 +115,14 @@ function renderCart(){
     btn.addEventListener('click', ()=>{
       const id = btn.getAttribute('data-id');
       const it = CART.items.find(x=>String(x.id)===String(id));
-      if(it){ it.qty = Number(it.qty||0) + 1; renderCart(); }
+      if(it){ if(it.locked){ showToast('รายการนี้ไม่สามารถแก้ไขจำนวนได้', 1500); return; } it.qty = Number(it.qty||0) + 1; renderCart(); }
     });
   });
   ph.querySelectorAll('.cart-minus').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const id = btn.getAttribute('data-id');
       const idx = CART.items.findIndex(x=>String(x.id)===String(id));
-      if(idx!==-1){ CART.items[idx].qty = Number(CART.items[idx].qty||0) - 1; if(CART.items[idx].qty <= 0) CART.items.splice(idx,1); renderCart(); }
+      if(idx!==-1){ if(CART.items[idx].locked){ showToast('รายการนี้ไม่สามารถแก้ไขจำนวนได้', 1500); return; } CART.items[idx].qty = Number(CART.items[idx].qty||0) - 1; if(CART.items[idx].qty <= 0) CART.items.splice(idx,1); renderCart(); }
     });
   });
 }
@@ -160,8 +179,8 @@ async function renderOrdersPanel(){
 }
 
 async function checkout(){
-  if(CART.items.length===0){ alert('Cart empty'); return; }
-  if(!CART.token) return alert('Invalid table link. Please use the QR code on your table.');
+  if(CART.items.length===0){ showToast('Cart empty', 1800); return; }
+  if(!CART.token) return showToast('Invalid table link. Please use the QR code on your table.', 3000);
   // disable checkout buttons to prevent double-submit
   const smallBtn = document.getElementById('checkout-small');
   const largeBtn = document.getElementById('checkout');
@@ -211,7 +230,7 @@ async function init(){
       const mandatory = (all || []).find(it => it.name === 'ชุดเปิดเตา');
       if(mandatory){
         const already = CART.items.find(i=>i.name===mandatory.name || i.id===mandatory.id);
-        if(!already) addToCart(mandatory);
+        if(!already) addToCart(mandatory, 1, true);
       }
     }
   }catch(e){ console.warn('Could not check existing orders for mandatory set', e); }
