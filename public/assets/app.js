@@ -16,6 +16,7 @@ const PATH = parsePath();
 let CART = { items: [], table: PATH.table, token: PATH.token };
 
 let CURRENT_CATEGORY = null;
+let SOCKET = null;
 function markCategorySelected(){ document.querySelectorAll('#categories button').forEach(btn=>{ btn.classList.toggle('selected', btn.textContent===CURRENT_CATEGORY); }); }
 function renderCategories(categories){
   const el = document.getElementById('categories');
@@ -111,9 +112,31 @@ async function renderOrdersPanel(){
 async function checkout(){
   if(CART.items.length===0){ alert('Cart empty'); return; }
   if(!CART.token) return alert('Invalid table link. Please use the QR code on your table.');
-  const payload = { table_id: CART.table, items: CART.items, total: CART.items.reduce((s,i)=>s+i.qty*i.price,0), payment_method: 'cash', token: CART.token };
-  const res = await fetch('/api/orders', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(payload) });
-  if(res.ok){ CART.items=[]; renderCart(); alert('ส่งรายการเรียบร้อย'); } else alert('ส่งรายการล้มเหลว');
+  // disable checkout buttons to prevent double-submit
+  const smallBtn = document.getElementById('checkout-small');
+  const largeBtn = document.getElementById('checkout');
+  if(smallBtn) smallBtn.disabled = true;
+  if(largeBtn) largeBtn.disabled = true;
+  try{
+    const payload = { table_id: CART.table, items: CART.items, total: CART.items.reduce((s,i)=>s+i.qty*i.price,0), payment_method: 'cash', token: CART.token };
+    const res = await fetch('/api/orders', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(payload) });
+    if(res.ok){
+      // clear cart and refresh UI immediately
+      CART.items = [];
+      renderCart();
+      // refresh placed orders panel so the new pending order appears instantly
+      await renderOrdersPanel();
+      alert('ส่งรายการเรียบร้อย');
+    } else {
+      let msg = 'ส่งรายการล้มเหลว';
+      try{ const txt = await res.text(); if(txt) msg += ': ' + txt; }catch(e){}
+      alert(msg);
+    }
+  }catch(e){ console.error('Checkout failed', e); alert('ส่งรายการล้มเหลว'); }
+  finally{
+    if(smallBtn) smallBtn.disabled = false;
+    if(largeBtn) largeBtn.disabled = false;
+  }
 }
 
 const oldCheckout = document.getElementById('checkout'); if(oldCheckout) oldCheckout.addEventListener('click', checkout);
@@ -155,11 +178,11 @@ init();
 
 // real-time updates via socket.io: join table room and refresh when orders change
 try{
-  const socket = io();
-  socket.on('connect', ()=>{ socket.emit('joinTable', PATH.table); });
-  socket.on('orders:created', (data)=>{ if(data && data.table_id === CART.table){ renderOrdersPanel(); } });
-  socket.on('orders:updated', (data)=>{ if(data && data.order && data.order.table_id === CART.table){ renderOrdersPanel(); } });
-  socket.on('orders:cleared', (data)=>{ if(data && data.table_id === CART.table){ renderOrdersPanel(); renderCart(); } });
-  socket.on('table:paid', (data)=>{ if(data && data.table_id === CART.table){ renderOrdersPanel(); renderCart(); } });
-  socket.on('table:cleaned', (data)=>{ if(data && data.table_id === CART.table){ renderOrdersPanel(); } });
+  SOCKET = io();
+  SOCKET.on('connect', ()=>{ SOCKET.emit('joinTable', PATH.table); });
+  SOCKET.on('orders:created', (data)=>{ if(data && data.table_id === CART.table){ renderOrdersPanel(); } });
+  SOCKET.on('orders:updated', (data)=>{ if(data && data.order && data.order.table_id === CART.table){ renderOrdersPanel(); } });
+  SOCKET.on('orders:cleared', (data)=>{ if(data && data.table_id === CART.table){ renderOrdersPanel(); renderCart(); } });
+  SOCKET.on('table:paid', (data)=>{ if(data && data.table_id === CART.table){ renderOrdersPanel(); renderCart(); } });
+  SOCKET.on('table:cleaned', (data)=>{ if(data && data.table_id === CART.table){ renderOrdersPanel(); } });
 }catch(e){ console.warn('Socket.io not available', e); }
