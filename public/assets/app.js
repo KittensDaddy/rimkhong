@@ -5,6 +5,29 @@ async function apiGet(path){
   return res.json();
 }
 
+// small toast utility so we don't block the UI with alert()
+function showToast(msg, timeout = 2500){
+  try{
+    let container = document.getElementById('toast-container');
+    if(!container){ container = document.createElement('div'); container.id = 'toast-container'; container.style.position = 'fixed'; container.style.bottom = '20px'; container.style.right = '20px'; container.style.zIndex = '9999'; document.body.appendChild(container); }
+    const t = document.createElement('div');
+    t.className = 'toast-msg';
+    t.textContent = msg;
+    t.style.background = 'rgba(0,0,0,0.8)';
+    t.style.color = 'white';
+    t.style.padding = '8px 12px';
+    t.style.borderRadius = '6px';
+    t.style.marginTop = '8px';
+    t.style.opacity = '0';
+    t.style.transition = 'opacity 200ms ease';
+    container.appendChild(t);
+    // force a reflow then show
+    void t.offsetWidth;
+    t.style.opacity = '1';
+    setTimeout(()=>{ t.style.opacity = '0'; setTimeout(()=>{ t.remove(); if(container.children.length===0) container.remove(); }, 250); }, timeout);
+  }catch(e){ console.warn('Could not show toast', e); }
+}
+
 function parsePath(){
   const parts = location.pathname.split('/').filter(Boolean);
   if(parts[0]==='table' && parts[1]) return { table: parseInt(parts[1],10), token: parts[2] };
@@ -33,15 +56,10 @@ function renderMenu(items){
   el.innerHTML = '';
   items.filter(it=>it.name !== 'ชุดเปิดเตา').forEach(it=>{
     const row = document.createElement('div'); row.className='menu-item';
-    // quantity input with plus/minus, placed before Add button
-    row.innerHTML = `<div class="left"><div><strong>${it.name}</strong></div><div class="price">${Number(it.price).toFixed(2)}</div></div><div class="menu-actions"><button class="menu-minus" aria-label="minus">-</button><input class="menu-qty" type="number" min="1" value="1" style="width:48px;text-align:center"/><button class="menu-plus" aria-label="plus">+</button><button class="menu-add" data-id="${it.id}">Add</button></div>`;
-    const qtyInput = row.querySelector('.menu-qty');
-    const plusBtn = row.querySelector('.menu-plus');
-    const minusBtn = row.querySelector('.menu-minus');
+    // simple Add button only (quantity selection removed per request)
+    row.innerHTML = `<div class="left"><div><strong>${it.name}</strong></div><div class="price">${Number(it.price).toFixed(2)}</div></div><div class="menu-actions"><button class="menu-add" data-id="${it.id}">Add</button></div>`;
     const addBtn = row.querySelector('.menu-add');
-    plusBtn.addEventListener('click', ()=>{ qtyInput.value = Math.max(1, parseInt(qtyInput.value||'1',10) + 1); });
-    minusBtn.addEventListener('click', ()=>{ qtyInput.value = Math.max(1, parseInt(qtyInput.value||'1',10) - 1); });
-    addBtn.addEventListener('click',()=>{ const q = Math.max(1, parseInt(qtyInput.value||'1',10)); addToCart(it, q); renderOrdersPanel(); });
+    addBtn.addEventListener('click',()=>{ addToCart(it, 1); renderOrdersPanel(); });
     el.appendChild(row);
   });
 }
@@ -62,6 +80,9 @@ function renderCart(){
   CART.items.forEach(it=>{
     total += it.qty * it.price;
     const li=document.createElement('li');
+    // add spacing/padding to make buttons easier to click
+    li.style.marginBottom = '8px';
+    li.style.padding = '6px 0';
     li.innerHTML = `<span class="cart-name">${it.name}</span> <span class="cart-controls"><button class="cart-minus" data-id="${it.id}">-</button> <span class="cart-qty">${it.qty}</span> <button class="cart-plus" data-id="${it.id}">+</button></span> <span class="cart-price">- ${ (it.qty*it.price).toFixed(2) }</span>`;
     ul.appendChild(li);
   });
@@ -155,13 +176,13 @@ async function checkout(){
       renderCart();
       // refresh placed orders panel so the new pending order appears instantly
       await renderOrdersPanel();
-      alert('ส่งรายการเรียบร้อย');
+      showToast('ส่งรายการเรียบร้อย', 2200);
     } else {
       let msg = 'ส่งรายการล้มเหลว';
       try{ const txt = await res.text(); if(txt) msg += ': ' + txt; }catch(e){}
-      alert(msg);
+      showToast(msg, 3000);
     }
-  }catch(e){ console.error('Checkout failed', e); alert('ส่งรายการล้มเหลว'); }
+  }catch(e){ console.error('Checkout failed', e); showToast('ส่งรายการล้มเหลว', 3000); }
   finally{
     if(smallBtn) smallBtn.disabled = false;
     if(largeBtn) largeBtn.disabled = false;
