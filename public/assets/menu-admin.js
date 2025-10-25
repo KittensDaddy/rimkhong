@@ -36,9 +36,9 @@ async function load(){
   menuItems = items;
   tableBody.innerHTML = '';
   items.forEach(it=>{
-    const tr = document.createElement('tr');
-    const availChecked = it.available === undefined ? true : !!it.available;
-    tr.innerHTML = `<td>${it.id}</td><td>${it.name}</td><td>${Number(it.price).toFixed(2)}</td><td>${it.category}</td><td><input type="checkbox" data-id="avail-${it.id}" ${availChecked? 'checked':''} /></td><td class="muted">${it.description||''}</td><td><button data-id="${it.id}" class="edit">Edit</button> <button data-id="${it.id}" class="del">Delete</button></td>`;
+  const tr = document.createElement('tr');
+  const availChecked = it.available === undefined ? true : !!it.available;
+  tr.innerHTML = `<td>${it.id}</td><td>${it.name}</td><td>${Number(it.price).toFixed(2)}</td><td>${it.category}</td><td><input type="checkbox" data-id="avail-${it.id}" ${availChecked? 'checked':''} /></td><td><button data-id="${it.id}" class="edit">Edit</button> <button data-id="${it.id}" class="del">Delete</button></td>`;
     tableBody.appendChild(tr);
   });
   attachButtons();
@@ -70,13 +70,12 @@ function attachButtons(){
   if(!it) return showToast('Item not found', 2200);
       tr.dataset.orig = tr.innerHTML;
       tr.dataset.editing = '1';
-      // cells: 0=id,1=name,2=price,3=category,4=avail,5=desc,6=actions
-      const nameTd = tr.children[1];
-      const priceTd = tr.children[2];
-      const catTd = tr.children[3];
-      const availTd = tr.children[4];
-      const descTd = tr.children[5];
-      const actionsTd = tr.children[6];
+  // cells: 0=id,1=name,2=price,3=category,4=avail,5=actions
+  const nameTd = tr.children[1];
+  const priceTd = tr.children[2];
+  const catTd = tr.children[3];
+  const availTd = tr.children[4];
+  const actionsTd = tr.children[5];
       // create inputs
       nameTd.innerHTML = `<input type="text" value="${escapeHtml(it.name)}" style="width:100%" />`;
       priceTd.innerHTML = `<input type="number" step="0.01" value="${Number(it.price).toFixed(2)}" style="width:100%" />`;
@@ -89,18 +88,16 @@ function attachButtons(){
       // available checkbox
       const chk = document.createElement('input'); chk.type='checkbox'; chk.checked = it.available === undefined ? true : !!it.available;
       availTd.innerHTML = ''; availTd.appendChild(chk);
-      // description editable
-      descTd.innerHTML = `<input type="text" value="${escapeHtml(it.description||'')}" style="width:100%" />`;
+  // (description removed from admin UI)
       // change action buttons
       actionsTd.innerHTML = `<button data-id="${it.id}" class="save">Save</button> <button data-id="${it.id}" class="cancel">Cancel</button>`;
       // attach save/cancel handlers
       actionsTd.querySelector('button.save').addEventListener('click', async ev=>{
-        const newName = nameTd.querySelector('input').value;
-        const newPrice = parseFloat(priceTd.querySelector('input').value);
-        const newCat = catTd.querySelector('select').value;
-        const newAvail = availTd.querySelector('input').checked;
-        const newDesc = descTd.querySelector('input').value;
-        const body = { name: newName, price: newPrice, category: newCat, description: newDesc, available: newAvail };
+  const newName = nameTd.querySelector('input').value;
+  const newPrice = parseFloat(priceTd.querySelector('input').value);
+  const newCat = catTd.querySelector('select').value;
+  const newAvail = availTd.querySelector('input').checked;
+  const body = { name: newName, price: newPrice, category: newCat, available: newAvail };
         const res = await apiPut('/menu/' + it.id, body);
   if(res.ok){ tr.removeAttribute('data-editing'); load(); } else { showToast('Update failed', 2600); }
       });
