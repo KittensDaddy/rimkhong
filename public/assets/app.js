@@ -60,16 +60,51 @@ function renderCart(){
 async function renderOrdersPanel(){
   const ul = document.getElementById('placed-orders'); ul.innerHTML='';
   try{
-    const orders = await apiGet('/orders/' + CART.table);
+    const orders = await apiGet('/orders/' + CART.table) || [];
+    // group orders by status and aggregate identical items
+    const groups = {};
+    let grandTotal = 0;
     (orders || []).forEach(o=>{
-      const li = document.createElement('li'); li.className='placed-order';
-      const items = Array.isArray(o.items) ? o.items : (o.items && JSON.parse(o.items)) || [];
-      const name = items.map(it=>`${it.name}${it.qty>1? ' x'+it.qty:''}`).join(', ');
       const status = o.served ? 'served' : (o.status === 'paid' ? 'paid' : 'pending');
-      const statusClass = status==='served' ? 'status-served' : (status==='paid' ? 'status-paid' : 'status-pending');
-      li.innerHTML = `<div>${name}</div><div><span class="status ${statusClass}">${status}</span></div>`;
+      if(!groups[status]) groups[status] = { items: {}, total: 0, count: 0 };
+      const g = groups[status];
+      g.total += Number(o.total || 0);
+      g.count += 1;
+      grandTotal += Number(o.total || 0);
+      const items = Array.isArray(o.items) ? o.items : (o.items && JSON.parse(o.items)) || [];
+      items.forEach(it=>{
+        const key = it.id != null ? String(it.id) : it.name;
+        if(!g.items[key]) g.items[key] = { id: it.id, name: it.name, price: Number(it.price||0), qty: 0 };
+        g.items[key].qty += Number(it.qty || 1);
+      });
+    });
+
+    // render groups in order: pending, served, paid
+    const orderSeq = ['pending','served','paid'];
+    const statusLabel = s => s==='pending' ? 'รอเสิร์ฟ' : (s==='served' ? 'เสิร์ฟแล้ว' : 'ชำระแล้ว');
+    orderSeq.forEach(s=>{
+      const g = groups[s];
+      if(!g) return;
+      const li = document.createElement('li'); li.className = 'placed-order';
+      const section = document.createElement('div');
+      const header = document.createElement('div'); header.style.fontWeight='600'; header.style.marginBottom='6px';
+      header.textContent = `${statusLabel(s)} — จำนวน ${g.count} รายการ — ยอดรวม ${g.total.toFixed(2)} ฿`;
+      section.appendChild(header);
+      const list = document.createElement('ul');
+      Object.values(g.items).forEach(it=>{
+        const itemLi = document.createElement('li'); itemLi.textContent = `${it.name} x${it.qty} — ${(it.price * it.qty).toFixed(2)} ฿`; list.appendChild(itemLi);
+      });
+      section.appendChild(list);
+      li.appendChild(section);
       ul.appendChild(li);
     });
+
+    // grand total
+    const totalLi = document.createElement('li'); totalLi.className='placed-order';
+    const totalDiv = document.createElement('div'); totalDiv.style.fontWeight='700'; totalDiv.textContent = `ยอดรวมทั้งหมด: ${grandTotal.toFixed(2)} ฿`;
+    totalLi.appendChild(totalDiv);
+    ul.appendChild(totalLi);
+
   }catch(e){ console.warn('Could not load placed orders', e); }
 }
 
