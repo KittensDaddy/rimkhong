@@ -33,15 +33,23 @@ function renderMenu(items){
   el.innerHTML = '';
   items.filter(it=>it.name !== 'ชุดเปิดเตา').forEach(it=>{
     const row = document.createElement('div'); row.className='menu-item';
-    row.innerHTML = `<div class="left"><div><strong>${it.name}</strong></div><div class="price">${Number(it.price).toFixed(2)}</div></div><div><button data-id="${it.id}">Add</button></div>`;
-    row.querySelector('button').addEventListener('click',()=>{ addToCart(it); renderOrdersPanel(); });
+    // quantity input with plus/minus, placed before Add button
+    row.innerHTML = `<div class="left"><div><strong>${it.name}</strong></div><div class="price">${Number(it.price).toFixed(2)}</div></div><div class="menu-actions"><button class="menu-minus" aria-label="minus">-</button><input class="menu-qty" type="number" min="1" value="1" style="width:48px;text-align:center"/><button class="menu-plus" aria-label="plus">+</button><button class="menu-add" data-id="${it.id}">Add</button></div>`;
+    const qtyInput = row.querySelector('.menu-qty');
+    const plusBtn = row.querySelector('.menu-plus');
+    const minusBtn = row.querySelector('.menu-minus');
+    const addBtn = row.querySelector('.menu-add');
+    plusBtn.addEventListener('click', ()=>{ qtyInput.value = Math.max(1, parseInt(qtyInput.value||'1',10) + 1); });
+    minusBtn.addEventListener('click', ()=>{ qtyInput.value = Math.max(1, parseInt(qtyInput.value||'1',10) - 1); });
+    addBtn.addEventListener('click',()=>{ const q = Math.max(1, parseInt(qtyInput.value||'1',10)); addToCart(it, q); renderOrdersPanel(); });
     el.appendChild(row);
   });
 }
 
-function addToCart(item){
+function addToCart(item, qty = 1){
+  qty = Number(qty) || 1;
   const existing = CART.items.find(i=>i.id===item.id);
-  if(existing) existing.qty += 1; else CART.items.push({ id:item.id, name:item.name, price:Number(item.price), qty:1 });
+  if(existing) existing.qty = Number(existing.qty || 0) + qty; else CART.items.push({ id:item.id, name:item.name, price:Number(item.price), qty: qty });
   renderCart();
 }
 
@@ -51,11 +59,32 @@ function renderCart(){
   if(CART.items.length===0) return;
   const h = document.createElement('div'); h.innerHTML = '<h4>Cart</h4>'; ph.appendChild(h);
   const ul = document.createElement('ul'); let total=0;
-  CART.items.forEach(it=>{ total += it.qty * it.price; const li=document.createElement('li'); li.textContent=`${it.name} x${it.qty} - ${ (it.qty*it.price).toFixed(2) }`; ul.appendChild(li); });
+  CART.items.forEach(it=>{
+    total += it.qty * it.price;
+    const li=document.createElement('li');
+    li.innerHTML = `<span class="cart-name">${it.name}</span> <span class="cart-controls"><button class="cart-minus" data-id="${it.id}">-</button> <span class="cart-qty">${it.qty}</span> <button class="cart-plus" data-id="${it.id}">+</button></span> <span class="cart-price">- ${ (it.qty*it.price).toFixed(2) }</span>`;
+    ul.appendChild(li);
+  });
   ph.appendChild(ul);
   const footer = document.createElement('div'); footer.className='cart-footer'; footer.innerHTML = `<div>Total: <strong>${total.toFixed(2)}</strong></div><button id="checkout-small">ส่งรายการ</button>`;
   ph.appendChild(footer);
-  document.getElementById('checkout-small').addEventListener('click', checkout);
+  const smallBtn = document.getElementById('checkout-small'); if(smallBtn) smallBtn.addEventListener('click', checkout);
+
+  // attach cart plus/minus handlers
+  ph.querySelectorAll('.cart-plus').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.getAttribute('data-id');
+      const it = CART.items.find(x=>String(x.id)===String(id));
+      if(it){ it.qty = Number(it.qty||0) + 1; renderCart(); }
+    });
+  });
+  ph.querySelectorAll('.cart-minus').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.getAttribute('data-id');
+      const idx = CART.items.findIndex(x=>String(x.id)===String(id));
+      if(idx!==-1){ CART.items[idx].qty = Number(CART.items[idx].qty||0) - 1; if(CART.items[idx].qty <= 0) CART.items.splice(idx,1); renderCart(); }
+    });
+  });
 }
 
 async function renderOrdersPanel(){
